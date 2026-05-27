@@ -17,8 +17,5 @@ public class HotelEntity {
     @EqualsAndHashCode.Include
     private Long id;
 
-    private int capacity;
-
-    @Version
-    private Long version;
+    private Integer capacity;
 }

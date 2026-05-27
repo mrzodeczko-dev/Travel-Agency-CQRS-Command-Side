@@ -20,8 +20,7 @@ public class TravelMapper {
     public Hotel toHotelDomain(HotelEntity entity) {
         return new Hotel(
                 entity.getId(),
-                entity.getCapacity(),
-                entity.getVersion()
+                entity.getCapacity()
         );
     }
 
@@ -51,7 +50,6 @@ public class TravelMapper {
 
             return OutboxEntity
                     .builder()
-                    // .id(UUID.randomUUID())
                     .aggregateId(booking.hotelId().toString())
                     .type("BookingCreated")
                     .payload(payloadJson)

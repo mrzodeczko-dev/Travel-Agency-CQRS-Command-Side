@@ -20,11 +20,27 @@ public class OutboxEntity {
     private UUID id;
 
 
-    private String aggregateId; // partitioningKey
+    private String aggregateId;
 
     private String type;
 
     @Lob
-    private String payload;  // JSON
+    private String payload;
     private LocalDateTime createdAt;
+
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Integer retryCount = 0;
+
+    public void incrementRetryCount() {
+        if (retryCount == null) {
+            retryCount = 0;
+        }
+        retryCount += 1;
+    }
+
+    public boolean hasExceededMaxRetries(int maxRetries) {
+        return retryCount != null && retryCount >= maxRetries;
+    }
 }

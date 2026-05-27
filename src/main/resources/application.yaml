@@ -15,22 +15,6 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
-        # Konfiguracja batching.
-
-        # batch_size: 50
-        # Włącza tzw. JDBC Batching. Zamiast wysyłać do bazy danych 50 oddzielnych zapytań INSERT, Hibernate
-        # zgromadzi je w paczkę i wyśle jako jeden strzał do bazy.
-
-        # order_inserts: true
-        # Wymusza na Hibernate sortowanie operacji INSERT przed ich wykonaniem.
-        # Aby batch_size działał efektywnie, zapytania muszą być tego samego typu (np. wstawianie do tabeli Users).
-        # Jeśli w jednej transakcji przeplatasz wstawianie Users i Orders, bez sortowania mechanizm batchingu by
-        # się "zrywał". Ta opcja układa je tak: User, User, User... a potem Order, Order..., co pozwala na spakowanie
-        # ich w pakiety.
-
-        # order_updates: true
-        # To samo co powyżej, ale dla operacji UPDATE. Sortuje aktualizacje według tabel i kluczy, aby można było
-        # je wysłać paczkami.
         jdbc:
           batch_size: 50
           order_inserts: true

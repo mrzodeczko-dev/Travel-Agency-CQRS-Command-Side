@@ -11,14 +11,6 @@ public class TransactionalCreateBookingUseCase implements CreateBookingUseCase {
 
     private final CreateBookingUseCase createBookingUseCase;
 
-
-    /**
-     * Dlaczego isolation jest ustawione na READ_COMMITED?
-     * Skoro mamy @Version nie obchodzi nas, czy ktos zmieni dane w trakcie trwania
-     * naszej transakcji. Dlaczego? Bo na samym koncu przy commit, Hibernate i tak sprawdzi,
-     * czy wersja hotelu jest taka sama, jak w momencie kiedy go odczytalem. Stosowanie
-     * wyzszych poziomow izolacji byloby tutaj nadmiarowe.
-     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public Long createBooking(CreateBookingCommand command) {

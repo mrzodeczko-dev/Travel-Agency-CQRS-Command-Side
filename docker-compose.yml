@@ -1,0 +1,126 @@
+services:
+  
+  # ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+  # DATABASES
+  # ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  travel-agency-command-side-mysql:
+    image: mysql:latest
+    restart: always
+    volumes:
+      - travel-agency-command-side-mysql:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_NAME}
+      MYSQL_USER: ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_USER}
+      MYSQL_PASSWORD: ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PASSWORD}
+      MYSQL_TCP_PORT: ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PORT}
+    command: --default-time-zone='+00:00'
+    ports:
+      - '${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PORT}:${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PORT}'
+    expose:
+      - ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PORT}
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost",  "-u", "${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_USER}", "-p${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - mr-network
+  
+  # ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+  # KAFKA
+  # ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka-single
+    hostname: kafka
+    ports:
+      - "9092:9092"   # port do komunikacji z aplikacja
+      - "9093:9093"   # port kontrolny (KRaft controller)
+    env_file:
+      - .env
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "bash", "-c", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - mr-network
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.5.11
+    container_name: schema-registry
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8200:8200"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8200
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka:9092
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8200/subjects" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - mr-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8100:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=kraft-cluster
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+      - KAFKA_CLUSTERS_0_KAFKACONNECT_ENABLED=false
+      - KAFKA_CLUSTERS_0_SCHEMAREGISTRY=http://schema-registry:8200
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    networks:
+      - mr-network
+  
+  # ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+  # APPLICATIONS
+  # ---------------------------------------------------------------------------------------------------------------------------------------------------------------        
+
+  travel-agency-command-side:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "${TA_COMMAND_SIDE_SERVICE_PORT}:${TA_COMMAND_SIDE_SERVICE_PORT}"
+    depends_on:
+      travel-agency-command-side-mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    environment:
+      SPRING_APPLICATION_NAME: ${TA_COMMAND_SIDE_SERVICE_APPLICATION_NAME}
+      SPRING_DATASOURCE_URL: jdbc:mysql://${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_HOST}:${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PORT}/${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_NAME}?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PASSWORD}
+      SERVER_PORT: ${TA_COMMAND_SIDE_SERVICE_PORT}
+    networks:
+      - mr-network
+
+
+volumes:
+  travel-agency-command-side-mysql:
+  kafka-data:
+
+networks:
+  mr-network:

@@ -2,7 +2,6 @@ package com.rzodeczko.application.command;
 
 import java.time.LocalDate;
 
-/** Booking command — temporal invariants enforced via compact constructor. */
 public record CreateBookingCommand(
         Long hotelId,
         Long userId,

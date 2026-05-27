@@ -1,0 +1,27 @@
+{
+  "type": "record",
+  "name": "BookingCreatedAvro",
+  "namespace": "com.rzodeczko.infrastructure.kafka.avro",
+  "fields": [
+    {
+      "name": "id",
+      "type": "long"
+    },
+    {
+      "name": "hotelId",
+      "type": "long"
+    },
+    {
+      "name": "userId",
+      "type": "long"
+    },
+    {
+      "name": "start",
+      "type": "string"
+    },
+    {
+      "name": "end",
+      "type": "string"
+    }
+  ]
+}
