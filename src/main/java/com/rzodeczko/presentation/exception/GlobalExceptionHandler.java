@@ -6,6 +6,7 @@ import com.rzodeczko.domain.exception.ResourceNotFoundException;
 import com.rzodeczko.presentation.dto.ErrorResponseDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -30,6 +31,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(new ErrorResponseDto("Concurrent booking detected. Please retry."));
+    }
+
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponseDto> handlePessimisticLockingFailureException(
+            PessimisticLockingFailureException ex) {
+        log.warn("Pessimistic lock timeout: {}", ex.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(new ErrorResponseDto("Resource is temporarily locked. Please retry."));
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)

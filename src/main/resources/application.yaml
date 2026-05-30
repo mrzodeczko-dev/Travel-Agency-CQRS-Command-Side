@@ -9,6 +9,11 @@ spring:
     virtual:
       enabled: true
 
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
   jpa:
     hibernate:
       ddl-auto: update
@@ -20,10 +25,6 @@ spring:
           order_inserts: true
           order_updates: true
     open-in-view: false
-    datasource:
-      url: ${SPRING_DATASOURCE_URL}
-      username: ${SPRING_DATASOURCE_USERNAME}
-      password: ${SPRING_DATASOURCE_PASSWORD}
 
   kafka:
     bootstrap-servers: kafka:9092
@@ -46,4 +47,4 @@ management:
   endpoints:
     web:
       exposure:
-        include=health:
+        include: "health"

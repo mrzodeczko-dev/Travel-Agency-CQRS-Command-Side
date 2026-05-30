@@ -11,7 +11,7 @@
 ## 📖 Overview
 [Back to Table of Contents](#toc)
 
-Travel Agency Command Side is the write model of a CQRS-based hotel booking platform. It handles all booking creation commands — validating availability via a Bucket Counting algorithm, enforcing Optimistic Locking for concurrency control, and publishing `BookingCreated` events to Kafka via the Transactional Outbox Pattern. Built on Hexagonal Architecture with a clean separation between domain, application, and infrastructure layers.
+Travel Agency Command Side is the write model of a CQRS-based hotel booking platform. It handles all booking creation commands — enforcing availability via **Pessimistic Locking** on a per-day availability table, and publishing `BookingCreated` events to Kafka via the **Transactional Outbox Pattern**. Built on Hexagonal Architecture with a clean separation between domain, application, and infrastructure layers.
 
 <a id="toc"></a>
 ## 📚 Table of Contents
@@ -35,11 +35,11 @@ Travel Agency Command Side is the write model of a CQRS-based hotel booking plat
 
 1. Client sends `POST /api/bookings` with hotel ID, user ID, and desired dates
 2. `BookingController` maps the request to a `CreateBookingCommand` and delegates to `CreateBookingUseCase`
-3. `TransactionalCreateBookingUseCase` wraps the entire operation in a single DB transaction
-4. `BookingService` fetches the `Hotel` aggregate and the list of overlapping bookings from the DB
-5. `Hotel.validateAvailability()` runs the **Bucket Counting algorithm** — checks occupancy per day and throws `OverbookingException` if capacity is exceeded
-6. The new `Booking` is persisted and an `OutboxEntity` record is saved **in the same transaction** (Transactional Outbox Pattern)
-7. Optimistic Locking is applied on the `Hotel` aggregate to detect concurrent conflicting writes
+3. `TransactionalCreateBookingUseCase` wraps the entire operation in a single DB transaction (`READ_COMMITTED`)
+4. `BookingService` fetches the `Hotel` aggregate and calls `reserveAvailability` on the repository port
+5. `TravelPersistenceAdapter` runs `SELECT ... FOR UPDATE` (pessimistic write lock) on all rows in `daily_availabilities` matching the hotel and date range — with a 3 s lock timeout
+6. For each date in the range: if a row exists it is checked against capacity and incremented; if no row exists it is created at `occupiedRooms = 1`. `OverbookingException` is thrown on any date that is full
+7. The new `Booking` is persisted and an `OutboxEntity` record is saved **in the same transaction** (Transactional Outbox Pattern)
 8. `OutboxScheduler` polls the outbox table every second, serialises pending entries to `BookingCreatedAvro`, and publishes them to the `travel.bookings` Kafka topic
 9. On publish failure the entry's retry counter is incremented; after `max-retries` the message is moved to the **Dead Letter** table
 
@@ -49,6 +49,7 @@ sequenceDiagram
     participant C as Client
     participant BC as BookingController
     participant BS as BookingService
+    participant PA as TravelPersistenceAdapter
     participant DB as MySQL
     participant OS as OutboxScheduler
     participant K as Kafka
@@ -56,17 +57,22 @@ sequenceDiagram
     C->>BC: POST /api/bookings { hotelId, userId, start, end }
     BC->>BS: CreateBookingCommand
 
-    BS->>DB: findHotel(hotelId)
-    DB-->>BS: Hotel aggregate (capacity, version)
+    BS->>PA: findHotel(hotelId)
+    PA->>DB: SELECT * FROM hotels WHERE id = ?
+    DB-->>BS: Hotel(id, capacity)
 
-    BS->>DB: findOverlapping(hotelId, start, end)
-    DB-->>BS: List<Booking>
+    BS->>PA: reserveAvailability(hotelId, capacity, start, end)
+    PA->>DB: SELECT ... FROM daily_availabilities FOR UPDATE (3 s timeout)
+    DB-->>PA: locked rows for date range
 
-    BS->>BS: hotel.validateAvailability() — Bucket Counting
-    Note over BS: OverbookingException if capacity exceeded
+    loop For each date in [start, end]
+        PA->>PA: get or create slot, check occupiedRooms < capacity
+        Note over PA: OverbookingException if any date is full
+        PA->>PA: slot.occupiedRooms++
+    end
 
-    BS->>DB: save(Booking) + saveOutbox(BookingCreated) [same TX]
-    BS->>DB: forceOptimisticLocking(hotel) — version check
+    PA->>DB: saveAll(daily_availabilities)
+    BS->>DB: save(Booking) + save(OutboxEntity) [same TX]
     DB-->>BS: saved Booking
 
     BC-->>C: 201 Created { bookingId }
@@ -131,8 +137,14 @@ curl -X POST http://localhost:8080/api/bookings \
 **Response `409 Conflict`** (hotel fully booked on any day in range):
 ```json
 {
-  "status": 409,
-  "error": "Hotel 1 overbooked on date 2026-08-03. Capacity: 2"
+  "message": "Hotel 1 overbooked on 2026-08-03. Capacity: 2, occupied: 2"
+}
+```
+
+**Response `409 Conflict`** (pessimistic lock timeout — concurrent request):
+```json
+{
+  "message": "Resource is temporarily locked. Please retry."
 }
 ```
 
@@ -191,7 +203,7 @@ Verify: `curl http://localhost:8080/actuator/health` → `{"status":"UP"}`
 | Variable | Required | Description | Example |
 |----------|----------|-------------|---------|
 | `TA_COMMAND_SIDE_SERVICE_MYSQL_DB_HOST` | yes | MySQL hostname (Docker service name) | `travel-agency-command-side-mysql` |
-| `TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PORT` | yes | Host port mapped to MySQL 3306 | `3307` |
+| `TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PORT` | yes | Host port mapped to MySQL | `3307` |
 | `TA_COMMAND_SIDE_SERVICE_MYSQL_DB_NAME` | yes | Database name | `travels_db` |
 | `TA_COMMAND_SIDE_SERVICE_MYSQL_DB_USER` | yes | Application DB user | `user` |
 | `TA_COMMAND_SIDE_SERVICE_MYSQL_DB_ROOT_PASSWORD` | yes | MySQL root password | `root1234` |
@@ -219,15 +231,15 @@ Verify: `curl http://localhost:8080/actuator/health` → `{"status":"UP"}`
 ## 🛠️ Common Issues
 [Back to Table of Contents](#toc)
 
-1. **Application fails to start — DB connection refused** — MySQL healthcheck must pass before the app starts. Check with `docker compose ps travel-agency-command-side-mysql` and `docker compose logs travel-agency-command-side-mysql`. The app waits for the healthcheck condition in `docker-compose.yml`.
+1. **Application fails to start — DB connection refused** — MySQL healthcheck must pass before the app starts. Check with `docker compose ps travel-agency-command-side-mysql` and `docker compose logs travel-agency-command-side-mysql`. The app container waits on the healthcheck condition defined in `docker-compose.yml`.
 
-2. **`OverbookingException` on every request** — the hotel's capacity in the DB may be 0 or the `daily_availability` table is out of sync. Verify the `Hotel` record exists and has `capacity > 0`.
+2. **`OverbookingException` on every request** — the hotel's capacity in the DB may be 0 or the `daily_availabilities` table has stale data. Verify the `Hotel` record exists with `capacity > 0` and inspect the `daily_availabilities` rows for that hotel.
 
-3. **Outbox messages stuck / not published** — check Schema Registry is reachable at `http://schema-registry:8200`. Inspect `docker compose logs travel-agency-command-side` for Kafka producer errors. After `max-retries` (default 5) messages move to the dead letter table — query `SELECT * FROM dead_letter` to inspect failures.
+3. **`409 — Resource is temporarily locked. Please retry.`** — a concurrent request is holding the pessimistic write lock on `daily_availabilities` for this hotel. The lock timeout is 3 seconds. Retry after a short delay; the other transaction will have committed or rolled back by then.
 
-4. **Optimistic Locking exception under load** — concurrent booking requests for the same hotel may trigger `OptimisticLockException`. The client should retry the request; this is by design. Consider reducing concurrency at the load-balancer level for a single hotel if retries are frequent.
+4. **Outbox messages stuck / not published** — check that Schema Registry is reachable at `http://schema-registry:8200`. Inspect `docker compose logs travel-agency-command-side` for Kafka producer errors. After `max-retries` (default 5) failures, messages are moved to the `dead_letter` table — query it directly to inspect the error messages.
 
-5. **Port conflict** — check for conflicts on `3307` (MySQL) and `8080` (app): `netstat -ano | findstr :3307`.
+5. **Port conflict** — check for conflicts on `3307` (MySQL), `8080` (app), `9092` (Kafka), `8200` (Schema Registry), `8100` (Kafka UI): `netstat -ano | findstr :8080`.
 
 ---
 
@@ -259,14 +271,14 @@ graph LR
     end
 
     subgraph DOMAIN["🏛️ Domain"]
-        H[Hotel aggregate\nvalidateAvailability]
+        H[Hotel\nid · capacity]
         B[Booking]
         EX[OverbookingException\nResourceNotFoundException]
     end
 
     subgraph INFRASTRUCTURE["🔧 Infrastructure"]
         subgraph PERSISTENCE["Persistence"]
-            PA[TravelPersistenceAdapter]
+            PA[TravelPersistenceAdapter\nreserveAvailability — SELECT FOR UPDATE]
             JPA["JPA Repositories\nBooking · Hotel · Outbox\nDailyAvailability · DeadLetter"]
         end
         subgraph KAFKA["Kafka"]
@@ -285,8 +297,9 @@ graph LR
     C --> BC --> TX --> BS
     BS --> UCI
     BS --> TR --> PA --> JPA --> DB
-    BS --> H --> B
-    H --> EX
+    BS --> H
+    H --> B
+    PA --> EX
 
     OS --> JPA
     OS --> APC --> K
@@ -302,11 +315,10 @@ graph LR
 
 **Technical Highlights:**
 
-- **Hexagonal Architecture (Ports & Adapters):** Domain and application layers have zero infrastructure dependencies — `TravelRepository` port is the only bridge, implemented by `TravelPersistenceAdapter`.
-- **CQRS Write Model:** This service handles only commands. All reads are delegated to a separate query-side service consuming events from Kafka.
-- **Bucket Counting Algorithm:** `Hotel.validateAvailability()` checks occupancy per day in O(N×D) — linear in the number of overlapping bookings, with D bounded by business constraints (typical stays of 1–30 days).
+- **Hexagonal Architecture (Ports & Adapters):** Domain and application layers have zero infrastructure dependencies. `TravelRepository` is the only bridge between application and infrastructure, implemented by `TravelPersistenceAdapter`.
+- **CQRS Write Model:** This service handles only commands. All reads are delegated to a separate query-side service that consumes events from Kafka.
+- **Pessimistic Locking on `daily_availabilities`:** Each row represents one hotel on one date. `reserveAvailability` issues `SELECT ... FOR UPDATE` on the affected rows with a 3 s lock timeout, preventing any concurrent transaction from double-booking the same day. New date slots are protected by a unique constraint `(hotel_id, date)` as an additional safety net for the first-booking race condition.
 - **Transactional Outbox Pattern:** `Booking` and `OutboxEntity` are persisted in one DB transaction — guarantees at-least-once Kafka delivery even if the broker is temporarily unavailable.
-- **Optimistic Locking:** The `Hotel` aggregate carries a JPA `@Version` field. Concurrent booking attempts for the same hotel are serialised by the DB — conflicting writes are rejected with `OptimisticLockException`.
 - **Dead Letter Table:** Failed Kafka publishes are retried up to `max-retries` times; after that the record is moved to `dead_letter` for manual inspection and reprocessing.
 - **Virtual Threads + container-aware JVM:** `spring.threads.virtual.enabled=true` with `-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC`.
 - **JDBC Batching:** Hibernate batch size 50 with `order_inserts=true` and `order_updates=true` for efficient bulk writes.
@@ -322,10 +334,10 @@ graph LR
 | Language | Java 25 (virtual threads via Project Loom) |
 | Framework | Spring Boot 4.0.6 |
 | Web | Spring WebMVC, Spring Validation |
-| Persistence | Spring Data JPA, Hibernate (batch writes) |
+| Persistence | Spring Data JPA, Hibernate (batch writes, pessimistic locking) |
 | Database | MySQL |
 | Messaging | Apache Kafka (KRaft, no ZooKeeper) |
-| Schema | Apache Avro 1.11.3, Confluent Schema Registry 7.6.0 |
+| Schema | Apache Avro 1.11.3, Confluent Schema Registry 7.5.11 |
 | Serialisation | `kafka-avro-serializer`, `BookingCreatedAvro` generated from `.avsc` |
 | Scheduling | Spring `@Scheduled` (OutboxScheduler — fixed delay 1 s) |
 | Build | Maven 3.9, multi-stage Docker build |
@@ -373,14 +385,14 @@ mvn verify      # unit tests + reports
 │   │   │   │   │   ├── in/  CreateBookingUseCase.java
 │   │   │   │   │   └── out/ TravelRepository.java
 │   │   │   │   └── service/
-│   │   │   │       └── BookingService.java        # Core booking logic + availability check
+│   │   │   │       └── BookingService.java
 │   │   │   ├── domain/
 │   │   │   │   ├── exception/
 │   │   │   │   │   ├── OverbookingException.java
 │   │   │   │   │   └── ResourceNotFoundException.java
 │   │   │   │   └── model/
 │   │   │   │       ├── Booking.java               # record
-│   │   │   │       └── Hotel.java                 # aggregate — validateAvailability()
+│   │   │   │       └── Hotel.java                 # id + capacity
 │   │   │   ├── infrastructure/
 │   │   │   │   ├── configuration/
 │   │   │   │   │   ├── BeansConfiguration.java
@@ -389,15 +401,16 @@ mvn verify      # unit tests + reports
 │   │   │   │   │       ├── CustomLocalDateSerializer.java
 │   │   │   │   │       └── CustomLocalDateDeserializer.java
 │   │   │   │   ├── kafka/
-│   │   │   │   │   ├── outbox/  OutboxScheduler.java
+│   │   │   │   │   ├── outbox/   OutboxScheduler.java
 │   │   │   │   │   ├── producer/ AvroProducerConfig.java
 │   │   │   │   │   ├── properties/ KafkaTopicProperties.java · OutboxProperties.java
-│   │   │   │   │   └── topic/   KafkaTopicConfig.java
+│   │   │   │   │   └── topic/    KafkaTopicConfig.java
 │   │   │   │   ├── persistence/
-│   │   │   │   │   ├── adapter/  TravelPersistenceAdapter.java
-│   │   │   │   │   ├── entity/   BookingEntity · HotelEntity · OutboxEntity
-│   │   │   │   │   │             DailyAvailabilityEntity · DeadLetterEntity
-│   │   │   │   │   ├── mapper/   TravelMapper.java
+│   │   │   │   │   ├── adapter/    TravelPersistenceAdapter.java  # SELECT FOR UPDATE logic
+│   │   │   │   │   ├── entity/     BookingEntity · HotelEntity · OutboxEntity
+│   │   │   │   │   │               DailyAvailabilityEntity · DailyAvailabilityId
+│   │   │   │   │   │               DeadLetterEntity
+│   │   │   │   │   ├── mapper/     TravelMapper.java
 │   │   │   │   │   └── repository/ JpaBookingRepository · JpaHotelRepository
 │   │   │   │   │                   JpaOutboxRepository · JpaDailyAvailabilityRepository
 │   │   │   │   │                   JpaDeadLetterRepository
@@ -416,10 +429,10 @@ mvn verify      # unit tests + reports
 │           │   ├── command/  CreateBookingCommandTest.java
 │           │   └── service/  BookingServiceTest.java
 │           └── infrastructure/
-│               ├── kafka/outbox/  OutboxSchedulerTest.java
-│               └── persistence/entity/ OutboxEntityTest.java
+│               ├── kafka/outbox/           OutboxSchedulerTest.java
+│               └── persistence/entity/     OutboxEntityTest.java
 ├── .env                                           # Environment variables (not committed)
-├── docker-compose.yml                             # MySQL + Kafka KRaft + Schema Registry + app
+├── docker-compose.yml                             # MySQL + Kafka KRaft + Schema Registry + Kafka UI + app
 ├── Dockerfile                                     # Multi-stage build (maven → jre-alpine, non-root)
 ├── pom.xml
 └── README.md
