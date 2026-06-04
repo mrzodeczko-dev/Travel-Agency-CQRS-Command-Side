@@ -14,10 +14,10 @@ services:
       MYSQL_DATABASE: ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_NAME}
       MYSQL_USER: ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_USER}
       MYSQL_PASSWORD: ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PASSWORD}
-      MYSQL_TCP_PORT: ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PORT}
+      MYSQL_TCP_PORT: 3307
     command: --default-time-zone='+00:00'
     ports:
-      - '${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PORT}:${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PORT}'
+      - '${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PORT}:3307'
     expose:
       - ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PORT}
     healthcheck:
@@ -100,7 +100,7 @@ services:
       dockerfile: Dockerfile
     restart: always
     ports:
-      - "${TA_COMMAND_SIDE_SERVICE_PORT}:${TA_COMMAND_SIDE_SERVICE_PORT}"
+      - "${TA_COMMAND_SIDE_SERVICE_PORT}:8080"
     depends_on:
       travel-agency-command-side-mysql:
         condition: service_healthy
