@@ -5,8 +5,8 @@ services:
   # ---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
   travel-agency-command-side-mysql:
-    image: mysql:latest
-    restart: always
+    image: mysql:9.0.6
+    restart: unless-stopped
     volumes:
       - travel-agency-command-side-mysql:/var/lib/mysql
     environment:
@@ -26,6 +26,16 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+    deploy:
+        resources:
+            limits:
+              cpus: '1.0'
+              memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     networks:
       - mr-network
   
@@ -98,7 +108,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    restart: always
+    restart: on-failure:10
     ports:
       - "${TA_COMMAND_SIDE_SERVICE_PORT}:8080"
     depends_on:
@@ -114,6 +124,16 @@ services:
       SPRING_DATASOURCE_USERNAME: ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${TA_COMMAND_SIDE_SERVICE_MYSQL_DB_PASSWORD}
       SERVER_PORT: ${TA_COMMAND_SIDE_SERVICE_PORT}
+    deploy:
+        resources:
+            limits:
+              cpus: '1.0'
+              memory: 768M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     networks:
       - mr-network
 
