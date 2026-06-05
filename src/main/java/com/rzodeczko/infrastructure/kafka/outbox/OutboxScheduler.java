@@ -22,6 +22,7 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 @Component
 @RequiredArgsConstructor
@@ -62,7 +63,14 @@ public class OutboxScheduler {
                 "eventType",
                 entry.getType().getBytes(StandardCharsets.UTF_8)
         );
-        kafkaTemplate.send(record);
+        try {
+            kafkaTemplate.send(record).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while sending outbox entry", e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException("Kafka send failed for outbox entry " + entry.getId(), e.getCause());
+        }
     }
 
     private void handleFailure(OutboxEntity entry, Exception e) {
