@@ -1,6 +1,7 @@
 package com.rzodeczko.infrastructure.kafka.outbox;
 
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import tools.jackson.databind.ObjectMapper;
 import com.rzodeczko.domain.model.Booking;
 import com.rzodeczko.infrastructure.kafka.avro.BookingCreatedAvro;
@@ -37,6 +38,7 @@ public class OutboxScheduler {
     private final KafkaTemplate<String, SpecificRecordBase> kafkaTemplate;
 
     @Scheduled(fixedDelayString = "${kafka.outbox.poll-interval}")
+    @SchedulerLock(name = "outboxSchedulerLock", lockAtLeastFor = "PT1s", lockAtMostFor = "PT30s")
     public void processOutbox() {
         List<OutboxEntity> entries = jpaOutboxRepository.findAllByOrderByCreatedAtAsc(
                 PageRequest.of(0, outboxProperties.batchSize()));
@@ -115,7 +117,7 @@ public class OutboxScheduler {
                 default -> throw new IllegalArgumentException("Unknown event type: " + entry.getType());
             };
         } catch (Exception e) {
-            throw new RuntimeException("Failed to convert outbox payload to AVRO");
+            throw new RuntimeException("Failed to convert outbox payload to AVRO, type: " + entry.getType(), e);
         }
     }
 }

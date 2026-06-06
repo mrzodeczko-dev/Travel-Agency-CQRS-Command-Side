@@ -47,7 +47,9 @@ kafka:
     batch-size: 50
     max-retries: 5
 
-
+sql:
+  init:
+    mode: always
 management:
   endpoints:
     web:
