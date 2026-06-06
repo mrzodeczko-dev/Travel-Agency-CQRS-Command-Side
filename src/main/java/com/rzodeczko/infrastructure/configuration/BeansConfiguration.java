@@ -11,6 +11,7 @@ import com.rzodeczko.infrastructure.configuration.serializer.CustomLocalDateDese
 import com.rzodeczko.infrastructure.configuration.serializer.CustomLocalDateSerializer;
 import com.rzodeczko.infrastructure.kafka.properties.KafkaTopicProperties;
 import com.rzodeczko.infrastructure.kafka.properties.OutboxProperties;
+import com.rzodeczko.infrastructure.tx.RetryingCreateBookingUseCase;
 import com.rzodeczko.infrastructure.tx.TransactionalCreateBookingUseCase;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -46,9 +47,16 @@ public class BeansConfiguration {
         return new BookingService(availabilityRepository, hotelRepository, bookingRepository, outboxRepository);
     }
 
+
+    @Bean
+    @Qualifier("plainTransactional")
+    public CreateBookingUseCase plainTransactional(BookingService bookingService) {
+        return new TransactionalCreateBookingUseCase(bookingService);
+    }
+
     @Bean
     @Qualifier("transactionalCreateBookingUseCase")
-    public CreateBookingUseCase transactionalCreateBookingUseCase(BookingService bookingService) {
-        return new TransactionalCreateBookingUseCase(bookingService);
+    public CreateBookingUseCase transactionalCreateBookingUseCase(@Qualifier("plainTransactional") CreateBookingUseCase createBookingUseCase) {
+        return new RetryingCreateBookingUseCase(createBookingUseCase);
     }
 }

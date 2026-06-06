@@ -50,6 +50,14 @@ kafka:
 sql:
   init:
     mode: always
+    data-locations:
+      - classpath:data/init.sql
+      - classpath:data/fixtures.sql
+    schema-locations: classpath:schema/schema.sql
+    encoding: UTF-8
+    continue-on-error: false  # czy kontynuować jeśli błąd
+    separator: ";"
+
 management:
   endpoints:
     web:
