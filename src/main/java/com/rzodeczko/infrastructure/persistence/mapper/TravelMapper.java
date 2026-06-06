@@ -1,8 +1,10 @@
 package com.rzodeczko.infrastructure.persistence.mapper;
 
 import com.rzodeczko.domain.model.Booking;
+import com.rzodeczko.domain.model.DailyAvailability;
 import com.rzodeczko.domain.model.Hotel;
 import com.rzodeczko.infrastructure.persistence.entity.BookingEntity;
+import com.rzodeczko.infrastructure.persistence.entity.DailyAvailabilityEntity;
 import com.rzodeczko.infrastructure.persistence.entity.HotelEntity;
 import com.rzodeczko.infrastructure.persistence.entity.OutboxEntity;
 import lombok.RequiredArgsConstructor;
@@ -58,5 +60,21 @@ public class TravelMapper {
         } catch (JacksonException e) {
             throw new RuntimeException("Error serializing Booking to JSON for Outbox", e);
         }
+    }
+
+    public DailyAvailability toDailyAvailabilityDomain(DailyAvailabilityEntity entity) {
+        return new DailyAvailability(
+                entity.getOccupiedRooms(),
+                entity.getHotelId(),
+                entity.getDate()
+        );
+    }
+
+    public DailyAvailabilityEntity toDailyAvailabilityEntity(DailyAvailability dailyAvailability) {
+        return DailyAvailabilityEntity.builder()
+                .occupiedRooms(dailyAvailability.occupiedRooms())
+                .hotelId(dailyAvailability.hotelId())
+                .date(dailyAvailability.date())
+                .build();
     }
 }

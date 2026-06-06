@@ -4,6 +4,7 @@ package com.rzodeczko.infrastructure.persistence.adapter;
 import com.rzodeczko.application.port.out.TravelRepository;
 import com.rzodeczko.domain.exception.OverbookingException;
 import com.rzodeczko.domain.model.Booking;
+import com.rzodeczko.domain.model.DailyAvailability;
 import com.rzodeczko.domain.model.Hotel;
 import com.rzodeczko.infrastructure.persistence.entity.DailyAvailabilityEntity;
 import com.rzodeczko.infrastructure.persistence.mapper.TravelMapper;
@@ -76,23 +77,18 @@ public class TravelPersistenceAdapter implements TravelRepository {
             LocalDate date,
             int capacity
     ) {
-        DailyAvailabilityEntity slot = existingSlots.computeIfAbsent(date, d ->
-                DailyAvailabilityEntity
-                        .builder()
-                        .hotelId(hotelId)
-                        .date(d)
-                        .occupiedRooms(0)
-                        .build()
-        );
 
-        if (slot.getOccupiedRooms() >= capacity) {
-            throw new OverbookingException("Hotel %d overbooked on %s. Capacity: %d, occupied: %d".formatted(
-                    hotelId, date, capacity, slot.getOccupiedRooms()
-            ));
+        DailyAvailabilityEntity existing = existingSlots.get(date);
+        DailyAvailability availability = existing != null ? travelMapper.toDailyAvailabilityDomain(existing) : new DailyAvailability(0, hotelId, date);
+
+        availability.reserveOne(capacity);
+
+        if (existing != null) {
+            existing.setOccupiedRooms(availability.occupiedRooms());
+            return existing;
         }
 
-        slot.setOccupiedRooms(slot.getOccupiedRooms() + 1);
-        return slot;
+        return travelMapper.toDailyAvailabilityEntity(availability);
     }
 
 }
