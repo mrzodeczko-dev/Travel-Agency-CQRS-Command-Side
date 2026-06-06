@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+            https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <include file="db/changelog/changes/001-create-sequences.xml"/>
+    <include file="db/changelog/changes/002-create-hotels.xml"/>
+    <include file="db/changelog/changes/003-create-bookings.xml"/>
+    <include file="db/changelog/changes/004-create-daily-availabilities.xml"/>
+    <include file="db/changelog/changes/005-create-outbox.xml"/>
+    <include file="db/changelog/changes/006-create-dead-letter-outbox.xml"/>
+    <include file="db/changelog/changes/007-create-shedlock.xml"/>
+
+</databaseChangeLog>

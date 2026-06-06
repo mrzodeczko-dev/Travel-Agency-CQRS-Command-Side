@@ -52,8 +52,8 @@ services:
     container_name: kafka-single
     hostname: kafka
     ports:
-      - "9092:9092"   # port do komunikacji z aplikacja
-      - "9093:9093"   # port kontrolny (KRaft controller)
+      - "9092:9092"
+      - "9093:9093"
     env_file:
       - .env
     volumes:
