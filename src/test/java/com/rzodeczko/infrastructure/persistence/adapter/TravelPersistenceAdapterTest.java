@@ -71,8 +71,8 @@ class TravelPersistenceAdapterTest {
     @Test
     void save_delegatesToMapperAndRepo_returnsMappedDomain() {
         Booking input   = new Booking(null, 1L, 2L, DATE, DATE_END);
-        BookingEntity entity  = new BookingEntity(null, 1L, 2L, DATE, DATE_END);
-        BookingEntity saved   = new BookingEntity(7L,  1L, 2L, DATE, DATE_END);
+        BookingEntity entity  = BookingEntity.builder().hotelId(1L).userId(2L).startDate(DATE).endDate(DATE_END).build();
+        BookingEntity saved   = BookingEntity.builder().id(7L).hotelId(1L).userId(2L).startDate(DATE).endDate(DATE_END).build();
         Booking expected      = new Booking(7L, 1L, 2L, DATE, DATE_END);
 
         when(travelMapper.toBookingEntity(input)).thenReturn(entity);

@@ -86,6 +86,21 @@ services:
     networks:
       - mr-network
 
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: [ "bash", "-c", "
+      echo 'Creating Kafka topics...' &&
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic ${TOPIC_BOOKINGS} --partitions ${TOPIC_PARTITIONS:-3} --replication-factor ${TOPIC_REPLICAS:-1} &&
+      echo 'All topics created successfully'
+      " ]
+    restart: "no"
+    networks:
+      - mr-network
+
   kafka-ui:
     image: provectuslabs/kafka-ui:0.3.3
     container_name: kafka-ui
@@ -122,12 +137,15 @@ services:
         condition: service_healthy
       schema-registry:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     environment:
       SPRING_APPLICATION_NAME: ${TA_COMMAND_SIDE_SERVICE_APPLICATION_NAME}
       SPRING_DATASOURCE_URL: jdbc:postgresql://travel-agency-command-side-postgres:5432/${TA_COMMAND_SIDE_SERVICE_DB_NAME}?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC
       SPRING_DATASOURCE_USERNAME: ${TA_COMMAND_SIDE_SERVICE_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${TA_COMMAND_SIDE_SERVICE_DB_PASSWORD}
       SERVER_PORT: ${TA_COMMAND_SIDE_SERVICE_PORT}
+      TOPIC_BOOKINGS: ${TOPIC_BOOKINGS}
     deploy:
         resources:
             limits:

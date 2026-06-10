@@ -4,7 +4,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "kafka.topics.bookings")
 public record KafkaTopicProperties (
-        String name,
-        int partitions,
-        int replicas
+        String name
 ) { }

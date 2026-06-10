@@ -1,8 +1,16 @@
 {
   "type": "record",
-  "name": "BookingCreatedAvro",
+  "name": "BookingEventAvro",
   "namespace": "com.rzodeczko.infrastructure.kafka.avro",
   "fields": [
+    {
+      "name": "eventType",
+      "type": {
+        "type": "enum",
+        "name": "EventType",
+        "symbols": ["BookingCreated", "BookingCancelled"]
+      }
+    },
     {
       "name": "id",
       "type": "long"

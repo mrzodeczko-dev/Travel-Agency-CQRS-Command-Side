@@ -1,6 +1,7 @@
 package com.rzodeczko.presentation.exception;
 
 
+import com.rzodeczko.domain.exception.BookingAlreadyCancelledException;
 import com.rzodeczko.domain.exception.OverbookingException;
 import com.rzodeczko.domain.exception.ResourceNotFoundException;
 import com.rzodeczko.presentation.dto.ErrorResponseDto;
@@ -40,6 +41,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(new ErrorResponseDto("Resource is temporarily locked. Please retry."));
+    }
+
+    @ExceptionHandler(BookingAlreadyCancelledException.class)
+    public ResponseEntity<ErrorResponseDto> handleBookingAlreadyCancelledException(
+            BookingAlreadyCancelledException ex) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(new ErrorResponseDto(ex.getMessage()));
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)

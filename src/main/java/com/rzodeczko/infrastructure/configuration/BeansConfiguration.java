@@ -1,6 +1,7 @@
 package com.rzodeczko.infrastructure.configuration;
 
 
+import com.rzodeczko.application.port.in.CancelBookingUseCase;
 import com.rzodeczko.application.port.in.CreateBookingUseCase;
 import com.rzodeczko.application.port.out.AvailabilityRepository;
 import com.rzodeczko.application.port.out.BookingRepository;
@@ -11,7 +12,9 @@ import com.rzodeczko.infrastructure.configuration.serializer.CustomLocalDateDese
 import com.rzodeczko.infrastructure.configuration.serializer.CustomLocalDateSerializer;
 import com.rzodeczko.infrastructure.kafka.properties.KafkaTopicProperties;
 import com.rzodeczko.infrastructure.kafka.properties.OutboxProperties;
+import com.rzodeczko.infrastructure.tx.RetryingCancelBookingUseCase;
 import com.rzodeczko.infrastructure.tx.RetryingCreateBookingUseCase;
+import com.rzodeczko.infrastructure.tx.TransactionalCancelBookingUseCase;
 import com.rzodeczko.infrastructure.tx.TransactionalCreateBookingUseCase;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -58,5 +61,18 @@ public class BeansConfiguration {
     @Qualifier("transactionalCreateBookingUseCase")
     public CreateBookingUseCase transactionalCreateBookingUseCase(@Qualifier("plainTransactional") CreateBookingUseCase createBookingUseCase) {
         return new RetryingCreateBookingUseCase(createBookingUseCase);
+    }
+
+    @Bean
+    @Qualifier("plainTransactionalCancel")
+    public CancelBookingUseCase plainTransactionalCancel(BookingService bookingService) {
+        return new TransactionalCancelBookingUseCase(bookingService);
+    }
+
+    @Bean
+    @Qualifier("transactionalCancelBookingUseCase")
+    public CancelBookingUseCase transactionalCancelBookingUseCase(
+            @Qualifier("plainTransactionalCancel") CancelBookingUseCase cancelBookingUseCase) {
+        return new RetryingCancelBookingUseCase(cancelBookingUseCase);
     }
 }

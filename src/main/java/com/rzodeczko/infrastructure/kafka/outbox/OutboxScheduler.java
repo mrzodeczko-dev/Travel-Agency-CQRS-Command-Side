@@ -4,7 +4,8 @@ package com.rzodeczko.infrastructure.kafka.outbox;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import tools.jackson.databind.ObjectMapper;
 import com.rzodeczko.domain.model.Booking;
-import com.rzodeczko.infrastructure.kafka.avro.BookingCreatedAvro;
+import com.rzodeczko.infrastructure.kafka.avro.BookingEventAvro;
+import com.rzodeczko.infrastructure.kafka.avro.EventType;
 import com.rzodeczko.infrastructure.kafka.properties.KafkaTopicProperties;
 import com.rzodeczko.infrastructure.kafka.properties.OutboxProperties;
 import com.rzodeczko.infrastructure.persistence.entity.DeadLetterEntity;
@@ -20,7 +21,6 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -60,10 +60,6 @@ public class OutboxScheduler {
                 kafkaTopicProperties.name(),
                 entry.getAggregateId(),
                 avro
-        );
-        record.headers().add(
-                "eventType",
-                entry.getType().getBytes(StandardCharsets.UTF_8)
         );
         try {
             kafkaTemplate.send(record).get();
@@ -106,16 +102,16 @@ public class OutboxScheduler {
     private SpecificRecordBase toAvro(OutboxEntity entry) {
         try {
             Booking booking = objectMapper.readValue(entry.getPayload(), Booking.class);
-            return switch (entry.getType()) {
-                case "BookingCreated" -> BookingCreatedAvro.newBuilder()
-                        .setId(booking.id())
-                        .setHotelId(booking.hotelId())
-                        .setUserId(booking.userId())
-                        .setStart(booking.start().toString())
-                        .setEnd(booking.end().toString())
-                        .build();
-                default -> throw new IllegalArgumentException("Unknown event type: " + entry.getType());
-            };
+            EventType eventType = EventType.valueOf(entry.getType());
+
+            return BookingEventAvro.newBuilder()
+                    .setId(booking.id())
+                    .setEventType(eventType)
+                    .setHotelId(booking.hotelId())
+                    .setUserId(booking.userId())
+                    .setStart(booking.start().toString())
+                    .setEnd(booking.end().toString())
+                    .build();
         } catch (Exception e) {
             throw new RuntimeException("Failed to convert outbox payload to AVRO, type: " + entry.getType(), e);
         }

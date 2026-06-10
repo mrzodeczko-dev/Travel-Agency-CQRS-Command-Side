@@ -54,8 +54,20 @@ public class TravelPersistenceAdapter implements
     }
 
     @Override
+    public Optional<Booking> findById(Long id) {
+        return jpaBookingRepository.findById(id)
+                .map(travelMapper::toBookingDomain);
+    }
+
+    @Override
     public void saveOutbox(Booking booking) {
         var outbox = travelMapper.toOutboxEntity(booking);
+        jpaOutboxRepository.save(outbox);
+    }
+
+    @Override
+    public void saveOutboxCancellation(Booking booking) {
+        var outbox = travelMapper.toCancellationOutboxEntity(booking);
         jpaOutboxRepository.save(outbox);
     }
 
@@ -75,6 +87,20 @@ public class TravelPersistenceAdapter implements
                 .toList();
 
         jpaDailyAvailabilityRepository.saveAll(toSave);
+    }
+
+    @Override
+    public void releaseAvailability(Long hotelId, LocalDate start, LocalDate end) {
+        List<DailyAvailabilityEntity> slots = jpaDailyAvailabilityRepository
+                .findAndLockByHotelAndDateRange(hotelId, start, end);
+
+        for (DailyAvailabilityEntity slot : slots) {
+            DailyAvailability availability = travelMapper.toDailyAvailabilityDomain(slot);
+            availability.releaseOne();
+            slot.setOccupiedRooms(availability.occupiedRooms());
+        }
+
+        jpaDailyAvailabilityRepository.saveAll(slots);
     }
 
     private DailyAvailabilityEntity reserveSlot(

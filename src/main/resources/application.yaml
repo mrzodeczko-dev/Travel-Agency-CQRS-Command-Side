@@ -42,9 +42,7 @@ spring:
 kafka:
   topics:
     bookings:
-      name: travel.bookings
-      partitions: 3
-      replicas: 1
+      name: ${TOPIC_BOOKINGS:travel.bookings}
   outbox:
     poll-interval: 1000
     batch-size: 50

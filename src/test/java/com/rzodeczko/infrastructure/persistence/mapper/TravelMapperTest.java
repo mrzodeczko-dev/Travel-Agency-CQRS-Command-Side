@@ -58,7 +58,7 @@ class TravelMapperTest {
 
     @Test
     void toBookingDomain_mapsAllFields() {
-        BookingEntity entity = new BookingEntity(10L, 1L, 2L, START, END);
+        BookingEntity entity = BookingEntity.builder().id(10L).hotelId(1L).userId(2L).startDate(START).endDate(END).build();
 
         Booking booking = mapper.toBookingDomain(entity);
 

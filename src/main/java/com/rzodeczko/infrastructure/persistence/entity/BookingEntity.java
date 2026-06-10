@@ -1,5 +1,6 @@
 package com.rzodeczko.infrastructure.persistence.entity;
 
+import com.rzodeczko.domain.model.BookingStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -40,4 +41,9 @@ public class BookingEntity {
 
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    @Builder.Default
+    private BookingStatus status = BookingStatus.ACTIVE;
 }

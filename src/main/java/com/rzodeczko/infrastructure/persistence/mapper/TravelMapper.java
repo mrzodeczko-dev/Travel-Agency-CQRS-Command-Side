@@ -32,28 +32,38 @@ public class TravelMapper {
                 entity.getHotelId(),
                 entity.getUserId(),
                 entity.getStartDate(),
-                entity.getEndDate()
+                entity.getEndDate(),
+                entity.getStatus()
         );
     }
 
     public BookingEntity toBookingEntity(Booking booking) {
-        return new BookingEntity(
-                booking.id(),
-                booking.hotelId(),
-                booking.userId(),
-                booking.start(),
-                booking.end()
-        );
+        return BookingEntity.builder()
+                .id(booking.id())
+                .hotelId(booking.hotelId())
+                .userId(booking.userId())
+                .startDate(booking.start())
+                .endDate(booking.end())
+                .status(booking.status())
+                .build();
     }
 
     public OutboxEntity toOutboxEntity(Booking booking) {
+        return toOutboxEntity(booking, "BookingCreated");
+    }
+
+    public OutboxEntity toCancellationOutboxEntity(Booking booking) {
+        return toOutboxEntity(booking, "BookingCancelled");
+    }
+
+    private OutboxEntity toOutboxEntity(Booking booking, String eventType) {
         try {
             String payloadJson = objectMapper.writeValueAsString(booking);
 
             return OutboxEntity
                     .builder()
                     .aggregateId(booking.hotelId().toString())
-                    .type("BookingCreated")
+                    .type(eventType)
                     .payload(payloadJson)
                     .createdAt(LocalDateTime.now())
                     .build();

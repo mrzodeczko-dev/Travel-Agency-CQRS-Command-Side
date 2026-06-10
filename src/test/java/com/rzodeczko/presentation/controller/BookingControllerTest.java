@@ -1,6 +1,7 @@
 package com.rzodeczko.presentation.controller;
 
 import com.rzodeczko.application.command.CreateBookingCommand;
+import com.rzodeczko.application.port.in.CancelBookingUseCase;
 import com.rzodeczko.application.port.in.CreateBookingUseCase;
 import com.rzodeczko.presentation.dto.CreateBookingRequestDto;
 import com.rzodeczko.presentation.dto.CreateBookingResponseDto;
@@ -24,6 +25,8 @@ class BookingControllerTest {
 
     @Mock
     private CreateBookingUseCase createBookingUseCase;
+    @Mock
+    private CancelBookingUseCase cancelBookingUseCase;
 
     private BookingController controller;
 
@@ -32,7 +35,7 @@ class BookingControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new BookingController(createBookingUseCase);
+        controller = new BookingController(createBookingUseCase, cancelBookingUseCase);
     }
 
     @Test

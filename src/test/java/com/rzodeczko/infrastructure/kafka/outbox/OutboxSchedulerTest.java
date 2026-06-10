@@ -42,7 +42,7 @@ class OutboxSchedulerTest {
     private OutboxScheduler outboxScheduler;
 
     private static final OutboxProperties OUTBOX_PROPS = new OutboxProperties(1000L, 50, 5);
-    private static final KafkaTopicProperties TOPIC_PROPS = new KafkaTopicProperties("travel.bookings", 3, 1);
+    private static final KafkaTopicProperties TOPIC_PROPS = new KafkaTopicProperties("travel.bookings");
 
     private static final String VALID_PAYLOAD =
             """
