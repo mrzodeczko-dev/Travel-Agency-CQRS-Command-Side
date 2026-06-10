@@ -5,6 +5,7 @@
 [![Kafka](https://img.shields.io/badge/Kafka-KRaft-black.svg)](https://kafka.apache.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
+[![CI](https://github.com/mrzodeczko-dev/travel-agency-command-side/actions/workflows/ci.yml/badge.svg)](https://github.com/mrzodeczko-dev/travel-agency-command-side/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 <a id="overview"></a>

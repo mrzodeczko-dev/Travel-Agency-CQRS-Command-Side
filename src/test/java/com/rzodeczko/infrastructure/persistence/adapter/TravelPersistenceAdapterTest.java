@@ -12,6 +12,8 @@ import com.rzodeczko.infrastructure.persistence.repository.JpaBookingRepository;
 import com.rzodeczko.infrastructure.persistence.repository.JpaDailyAvailabilityRepository;
 import com.rzodeczko.infrastructure.persistence.repository.JpaHotelRepository;
 import com.rzodeczko.infrastructure.persistence.repository.JpaOutboxRepository;
+import com.rzodeczko.domain.model.DailyAvailability;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -42,6 +44,19 @@ class TravelPersistenceAdapterTest {
 
     private static final LocalDate DATE     = LocalDate.of(2027, 6, 1);
     private static final LocalDate DATE_END = LocalDate.of(2027, 6, 3);
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(travelMapper.toDailyAvailabilityDomain(any())).thenAnswer(inv -> {
+            DailyAvailabilityEntity e = inv.getArgument(0);
+            return new DailyAvailability(e.getOccupiedRooms(), e.getHotelId(), e.getDate());
+        });
+        lenient().when(travelMapper.toDailyAvailabilityEntity(any())).thenAnswer(inv -> {
+            DailyAvailability a = inv.getArgument(0);
+            return DailyAvailabilityEntity.builder()
+                    .hotelId(a.hotelId()).date(a.date()).occupiedRooms(a.occupiedRooms()).build();
+        });
+    }
 
     // ── findHotel ────────────────────────────────────────────────────────────
 

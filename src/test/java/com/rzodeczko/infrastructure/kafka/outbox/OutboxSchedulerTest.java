@@ -7,6 +7,7 @@ import com.rzodeczko.infrastructure.persistence.entity.OutboxEntity;
 import com.rzodeczko.infrastructure.persistence.repository.JpaDeadLetterRepository;
 import com.rzodeczko.infrastructure.persistence.repository.JpaOutboxRepository;
 import org.apache.avro.specific.SpecificRecordBase;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,12 +22,14 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,6 +56,9 @@ class OutboxSchedulerTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(kafkaTemplate.send(any(ProducerRecord.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+
         outboxScheduler = new OutboxScheduler(
                 jpaOutboxRepository,
                 jpaDeadLetterRepository,
@@ -115,19 +121,18 @@ class OutboxSchedulerTest {
     }
 
     @Test
-    void processOutbox_firstEntryFails_remainingEntriesStillProcessed() {
+    void processOutbox_firstEntryFails_remainingEntriesSkippedToPreserveOrder() {
         OutboxEntity failing = buildEntry(0);
-        OutboxEntity succeeding = buildEntry(0);
+        OutboxEntity skipped = buildEntry(0);
         when(jpaOutboxRepository.findAllByOrderByCreatedAtAsc(any()))
-                .thenReturn(List.of(failing, succeeding));
+                .thenReturn(List.of(failing, skipped));
         when(objectMapper.readValue(anyString(), eq(Booking.class)))
-                .thenThrow(new RuntimeException("first fails"))
-                .thenReturn(DESERIALIZED_BOOKING);
+                .thenThrow(new RuntimeException("first fails"));
 
         outboxScheduler.processOutbox();
 
         verify(jpaOutboxRepository).save(failing);
-        verify(jpaOutboxRepository).delete(succeeding);
+        verify(jpaOutboxRepository, never()).delete(any());
     }
 
     @Test
