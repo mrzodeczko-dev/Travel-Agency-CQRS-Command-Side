@@ -61,59 +61,30 @@ Travel Agency Command Side is the write model of a CQRS-based hotel booking plat
 sequenceDiagram
     autonumber
     participant C as Client
-    participant BC as BookingController
-    participant RU as Retrying UseCase
-    participant TX as Transactional UseCase
+    participant BC as Controller
     participant BS as BookingService
-    participant PA as TravelPersistenceAdapter
     participant DB as PostgreSQL
     participant OS as OutboxScheduler
     participant K as Kafka
 
-    rect rgb(220, 240, 220)
-        Note over C,K: Booking Creation
-        C->>BC: POST /api/bookings { hotelId, userId, start, end }
-        BC->>RU: CreateBookingCommand
-        RU->>TX: delegate (retry on DataIntegrityViolationException, max 3)
-        TX->>BS: createBooking(command) [READ_COMMITTED TX]
-        BS->>PA: findHotel(hotelId)
-        PA->>DB: SELECT * FROM hotels WHERE id = ?
-        DB-->>BS: Hotel(id, capacity)
-        BS->>PA: reserveAvailability(hotelId, capacity, start, end)
-        PA->>DB: SELECT ... FROM daily_availabilities FOR UPDATE (3 s timeout)
-        loop For each date in [start, end]
-            PA->>PA: get or create slot, check occupiedRooms < capacity
-            PA->>PA: slot.occupiedRooms++
-        end
-        PA->>DB: saveAll(daily_availabilities)
-        BS->>DB: save(Booking ACTIVE) + save(OutboxEntity BookingCreated) [same TX]
-        BC-->>C: 201 Created { bookingId }
-    end
+    C->>BC: POST /api/bookings
+    BC->>BS: CreateBookingCommand
+    Note right of BC: retry 3× · READ_COMMITTED TX
+    BS->>DB: SELECT FOR UPDATE (daily_availabilities)
+    BS->>DB: save Booking (ACTIVE) + OutboxEntity (BookingCreated)
+    BC-->>C: 201 Created
 
-    rect rgb(240, 220, 220)
-        Note over C,K: Booking Cancellation
-        C->>BC: DELETE /api/bookings/{id}
-        BC->>RU: CancelBookingCommand
-        RU->>TX: delegate (retry on DataIntegrityViolationException, max 3)
-        TX->>BS: cancelBooking(command) [READ_COMMITTED TX]
-        BS->>PA: findById(bookingId)
-        PA->>DB: SELECT * FROM bookings WHERE id = ?
-        Note over BS: 409 if already CANCELLED
-        BS->>PA: releaseAvailability(hotelId, start, end)
-        PA->>DB: UPDATE daily_availabilities SET occupied_rooms = occupied_rooms - 1
-        BS->>DB: save(Booking CANCELLED) + save(OutboxEntity BookingCancelled) [same TX]
-        BC-->>C: 204 No Content
-    end
+    C->>BC: DELETE /api/bookings/{id}
+    BC->>BS: CancelBookingCommand
+    Note right of BC: retry 3× · READ_COMMITTED TX
+    BS->>DB: find booking, verify not CANCELLED
+    BS->>DB: release availability + save Booking (CANCELLED) + OutboxEntity (BookingCancelled)
+    BC-->>C: 204 No Content
 
-    rect rgb(220, 220, 240)
-        Note over OS,K: Outbox Publishing (shared)
-        loop Every 1 s
-            OS->>DB: poll OutboxEntity (batch 50, FIFO)
-            OS->>K: BookingEventAvro (EventType enum) → travel.bookings
-            K-->>OS: ack
-            OS->>DB: delete OutboxEntity
-        end
-        Note over OS,DB: On failure: increment retry_count → Dead Letter after max-retries
+    loop Every 1 s
+        OS->>DB: poll outbox (batch 50)
+        OS->>K: BookingEventAvro (EventType enum)
+        OS->>DB: delete entry (or retry → Dead Letter)
     end
 ```
 
