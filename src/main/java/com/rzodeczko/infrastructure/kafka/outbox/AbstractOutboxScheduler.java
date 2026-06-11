@@ -1,46 +1,48 @@
 package com.rzodeczko.infrastructure.kafka.outbox;
 
-
-import com.rzodeczko.avro.BookingEventAvro;
-import com.rzodeczko.avro.EventType;
-import com.rzodeczko.domain.model.Booking;
-import com.rzodeczko.infrastructure.kafka.properties.KafkaTopicProperties;
 import com.rzodeczko.infrastructure.kafka.properties.OutboxProperties;
 import com.rzodeczko.infrastructure.persistence.entity.DeadLetterEntity;
 import com.rzodeczko.infrastructure.persistence.entity.OutboxEntity;
 import com.rzodeczko.infrastructure.persistence.repository.JpaDeadLetterRepository;
 import com.rzodeczko.infrastructure.persistence.repository.JpaOutboxRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
-import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-@Component
-@RequiredArgsConstructor
 @Slf4j
-public class OutboxScheduler {
-    private final JpaOutboxRepository jpaOutboxRepository;
-    private final JpaDeadLetterRepository jpaDeadLetterRepository;
+public abstract class AbstractOutboxScheduler {
 
-    private final KafkaTopicProperties kafkaTopicProperties;
-    private final OutboxProperties outboxProperties;
-    private final ObjectMapper objectMapper;
-    private final KafkaTemplate<String, SpecificRecordBase> kafkaTemplate;
+    protected final JpaOutboxRepository jpaOutboxRepository;
+    protected final JpaDeadLetterRepository jpaDeadLetterRepository;
+    protected final OutboxProperties outboxProperties;
+    protected final KafkaTemplate<String, SpecificRecordBase> kafkaTemplate;
 
-    @Scheduled(fixedDelayString = "${kafka.outbox.poll-interval}")
-    @SchedulerLock(name = "outboxSchedulerLock", lockAtLeastFor = "PT1s", lockAtMostFor = "PT30s")
-    public void processOutbox() {
-        List<OutboxEntity> entries = jpaOutboxRepository.findAllByOrderByCreatedAtAsc(
+    protected AbstractOutboxScheduler(
+            JpaOutboxRepository jpaOutboxRepository,
+            JpaDeadLetterRepository jpaDeadLetterRepository,
+            OutboxProperties outboxProperties,
+            KafkaTemplate<String, SpecificRecordBase> kafkaTemplate) {
+        this.jpaOutboxRepository = jpaOutboxRepository;
+        this.jpaDeadLetterRepository = jpaDeadLetterRepository;
+        this.outboxProperties = outboxProperties;
+        this.kafkaTemplate = kafkaTemplate;
+    }
+
+    protected abstract List<String> supportedTypes();
+
+    protected abstract String resolveTopic(OutboxEntity entry);
+
+    protected abstract SpecificRecordBase toAvro(OutboxEntity entry);
+
+    protected void processOutbox() {
+        List<OutboxEntity> entries = jpaOutboxRepository.findAllByTypeInOrderByCreatedAtAsc(
+                supportedTypes(),
                 PageRequest.of(0, outboxProperties.batchSize()));
 
         for (OutboxEntity entry : entries) {
@@ -55,12 +57,10 @@ public class OutboxScheduler {
     }
 
     private void sendToKafka(OutboxEntity entry) {
-        SpecificRecordBase avro = toAvro(entry);
         var record = new ProducerRecord<>(
-                kafkaTopicProperties.name(),
+                resolveTopic(entry),
                 entry.getAggregateId(),
-                avro
-        );
+                toAvro(entry));
         try {
             kafkaTemplate.send(record).get();
         } catch (InterruptedException e) {
@@ -97,23 +97,5 @@ public class OutboxScheduler {
                 .retryCount(entry.getRetryCount())
                 .build();
         jpaDeadLetterRepository.save(deadLetter);
-    }
-
-    private SpecificRecordBase toAvro(OutboxEntity entry) {
-        try {
-            Booking booking = objectMapper.readValue(entry.getPayload(), Booking.class);
-            EventType eventType = EventType.valueOf(entry.getType());
-
-            return BookingEventAvro.newBuilder()
-                    .setId(booking.id())
-                    .setEventType(eventType)
-                    .setHotelId(booking.hotelId())
-                    .setUserId(booking.userId())
-                    .setStart(booking.start().toString())
-                    .setEnd(booking.end().toString())
-                    .build();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to convert outbox payload to AVRO, type: " + entry.getType(), e);
-        }
     }
 }

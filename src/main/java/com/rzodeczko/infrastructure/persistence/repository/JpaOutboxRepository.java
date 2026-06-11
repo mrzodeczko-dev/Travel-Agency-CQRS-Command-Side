@@ -9,4 +9,5 @@ import java.util.UUID;
 
 public interface JpaOutboxRepository extends JpaRepository<OutboxEntity, UUID> {
     List<OutboxEntity> findAllByOrderByCreatedAtAsc(Pageable pageable);
+    List<OutboxEntity> findAllByTypeInOrderByCreatedAtAsc(List<String> types, Pageable pageable);
 }

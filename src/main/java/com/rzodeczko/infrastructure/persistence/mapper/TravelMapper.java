@@ -13,6 +13,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -69,6 +70,29 @@ public class TravelMapper {
                     .build();
         } catch (JacksonException e) {
             throw new RuntimeException("Error serializing Booking to JSON for Outbox", e);
+        }
+    }
+
+    public HotelEntity toHotelEntity(Hotel hotel) {
+        return HotelEntity.builder()
+                .id(hotel.getId())
+                .capacity(hotel.getCapacity())
+                .build();
+    }
+
+    public OutboxEntity toHotelOutboxEntity(Hotel hotel) {
+        try {
+            String payloadJson = objectMapper.writeValueAsString(
+                    Map.of("hotelId", hotel.getId(), "capacity", hotel.getCapacity()));
+
+            return OutboxEntity.builder()
+                    .aggregateId(hotel.getId().toString())
+                    .type("HotelUpserted")
+                    .payload(payloadJson)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+        } catch (JacksonException e) {
+            throw new RuntimeException("Error serializing Hotel to JSON for Outbox", e);
         }
     }
 

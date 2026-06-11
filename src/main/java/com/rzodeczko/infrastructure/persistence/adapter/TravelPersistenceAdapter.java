@@ -8,6 +8,7 @@ import com.rzodeczko.application.port.out.OutboxRepository;
 import com.rzodeczko.domain.model.Booking;
 import com.rzodeczko.domain.model.DailyAvailability;
 import com.rzodeczko.domain.model.Hotel;
+import com.rzodeczko.infrastructure.persistence.entity.HotelEntity;
 import com.rzodeczko.infrastructure.persistence.entity.DailyAvailabilityEntity;
 import com.rzodeczko.infrastructure.persistence.mapper.TravelMapper;
 import com.rzodeczko.infrastructure.persistence.repository.JpaBookingRepository;
@@ -47,6 +48,13 @@ public class TravelPersistenceAdapter implements
     }
 
     @Override
+    public Hotel saveHotel(Hotel hotel) {
+        HotelEntity entity = travelMapper.toHotelEntity(hotel);
+        HotelEntity saved = jpaHotelRepository.save(entity);
+        return travelMapper.toHotelDomain(saved);
+    }
+
+    @Override
     public Booking save(Booking booking) {
         var entity = travelMapper.toBookingEntity(booking);
         var saved = jpaBookingRepository.save(entity);
@@ -68,6 +76,12 @@ public class TravelPersistenceAdapter implements
     @Override
     public void saveOutboxCancellation(Booking booking) {
         var outbox = travelMapper.toCancellationOutboxEntity(booking);
+        jpaOutboxRepository.save(outbox);
+    }
+
+    @Override
+    public void saveHotelOutbox(Hotel hotel) {
+        var outbox = travelMapper.toHotelOutboxEntity(hotel);
         jpaOutboxRepository.save(outbox);
     }
 

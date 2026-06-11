@@ -7,15 +7,19 @@ import com.rzodeczko.application.port.out.AvailabilityRepository;
 import com.rzodeczko.application.port.out.BookingRepository;
 import com.rzodeczko.application.port.out.HotelRepository;
 import com.rzodeczko.application.port.out.OutboxRepository;
+import com.rzodeczko.application.port.in.UpsertHotelUseCase;
 import com.rzodeczko.application.service.BookingService;
+import com.rzodeczko.application.service.HotelService;
 import com.rzodeczko.infrastructure.configuration.serializer.CustomLocalDateDeserializer;
 import com.rzodeczko.infrastructure.configuration.serializer.CustomLocalDateSerializer;
+import com.rzodeczko.infrastructure.kafka.properties.HotelTopicProperties;
 import com.rzodeczko.infrastructure.kafka.properties.KafkaTopicProperties;
 import com.rzodeczko.infrastructure.kafka.properties.OutboxProperties;
 import com.rzodeczko.infrastructure.tx.RetryingCancelBookingUseCase;
 import com.rzodeczko.infrastructure.tx.RetryingCreateBookingUseCase;
 import com.rzodeczko.infrastructure.tx.TransactionalCancelBookingUseCase;
 import com.rzodeczko.infrastructure.tx.TransactionalCreateBookingUseCase;
+import com.rzodeczko.infrastructure.tx.TransactionalUpsertHotelUseCase;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -27,7 +31,7 @@ import tools.jackson.databind.module.SimpleModule;
 import java.time.LocalDate;
 
 @Configuration
-@EnableConfigurationProperties({KafkaTopicProperties.class, OutboxProperties.class})
+@EnableConfigurationProperties({KafkaTopicProperties.class, HotelTopicProperties.class, OutboxProperties.class})
 public class BeansConfiguration {
     @Bean
     public ObjectMapper objectMapper() {
@@ -50,6 +54,19 @@ public class BeansConfiguration {
         return new BookingService(availabilityRepository, hotelRepository, bookingRepository, outboxRepository);
     }
 
+
+    @Bean
+    public HotelService hotelService(
+            HotelRepository hotelRepository,
+            OutboxRepository outboxRepository
+    ) {
+        return new HotelService(hotelRepository, outboxRepository);
+    }
+
+    @Bean
+    public UpsertHotelUseCase upsertHotelUseCase(HotelService hotelService) {
+        return new TransactionalUpsertHotelUseCase(hotelService);
+    }
 
     @Bean
     @Qualifier("plainTransactional")

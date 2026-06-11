@@ -35,22 +35,26 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class OutboxSchedulerTest {
+class BookingOutboxSchedulerTest {
 
-    @Mock private JpaOutboxRepository jpaOutboxRepository;
-    @Mock private JpaDeadLetterRepository jpaDeadLetterRepository;
-    @Mock private ObjectMapper objectMapper;
-    @Mock private KafkaTemplate<String, SpecificRecordBase> kafkaTemplate;
+    @Mock
+    private JpaOutboxRepository jpaOutboxRepository;
+    @Mock
+    private JpaDeadLetterRepository jpaDeadLetterRepository;
+    @Mock
+    private ObjectMapper objectMapper;
+    @Mock
+    private KafkaTemplate<String, SpecificRecordBase> kafkaTemplate;
 
-    private OutboxScheduler outboxScheduler;
+    private BookingOutboxScheduler scheduler;
 
     private static final OutboxProperties OUTBOX_PROPS = new OutboxProperties(1000L, 50, 5);
     private static final KafkaTopicProperties TOPIC_PROPS = new KafkaTopicProperties("travel.bookings");
 
     private static final String VALID_PAYLOAD =
             """
-            {"id":1,"hotelId":2,"userId":3,"start":"2027-01-10","end":"2027-01-15"}
-            """;
+                    {"id":1,"hotelId":2,"userId":3,"start":"2027-01-10","end":"2027-01-15"}
+                    """;
     private static final Booking DESERIALIZED_BOOKING =
             new Booking(1L, 2L, 3L, LocalDate.of(2027, 1, 10), LocalDate.of(2027, 1, 15));
 
@@ -59,21 +63,22 @@ class OutboxSchedulerTest {
         lenient().when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(null));
 
-        outboxScheduler = new OutboxScheduler(
+        scheduler = new BookingOutboxScheduler(
                 jpaOutboxRepository,
                 jpaDeadLetterRepository,
-                TOPIC_PROPS,
                 OUTBOX_PROPS,
-                objectMapper,
-                kafkaTemplate
+                kafkaTemplate,
+                TOPIC_PROPS,
+                objectMapper
         );
     }
 
     @Test
     void processOutbox_emptyOutbox_doesNothing() {
-        when(jpaOutboxRepository.findAllByOrderByCreatedAtAsc(any())).thenReturn(List.of());
+        when(jpaOutboxRepository.findAllByTypeInOrderByCreatedAtAsc(any(), any()))
+                .thenReturn(List.of());
 
-        assertThatCode(() -> outboxScheduler.processOutbox()).doesNotThrowAnyException();
+        assertThatCode(() -> scheduler.processOutbox()).doesNotThrowAnyException();
 
         verify(jpaOutboxRepository, never()).delete(any());
         verify(jpaOutboxRepository, never()).save(any());
@@ -82,10 +87,11 @@ class OutboxSchedulerTest {
     @Test
     void processOutbox_successfulEntry_deletedFromOutbox() {
         OutboxEntity entry = buildEntry(0);
-        when(jpaOutboxRepository.findAllByOrderByCreatedAtAsc(any())).thenReturn(List.of(entry));
+        when(jpaOutboxRepository.findAllByTypeInOrderByCreatedAtAsc(any(), any()))
+                .thenReturn(List.of(entry));
         when(objectMapper.readValue(anyString(), eq(Booking.class))).thenReturn(DESERIALIZED_BOOKING);
 
-        outboxScheduler.processOutbox();
+        scheduler.processOutbox();
 
         verify(jpaOutboxRepository).delete(entry);
         verify(jpaDeadLetterRepository, never()).save(any());
@@ -94,11 +100,12 @@ class OutboxSchedulerTest {
     @Test
     void processOutbox_failingEntry_belowMaxRetries_incrementsRetryCountAndSavesBack() {
         OutboxEntity entry = buildEntry(2);
-        when(jpaOutboxRepository.findAllByOrderByCreatedAtAsc(any())).thenReturn(List.of(entry));
+        when(jpaOutboxRepository.findAllByTypeInOrderByCreatedAtAsc(any(), any()))
+                .thenReturn(List.of(entry));
         when(objectMapper.readValue(anyString(), ArgumentMatchers.<Class<Booking>>any()))
                 .thenThrow(new RuntimeException("deserialization error"));
 
-        outboxScheduler.processOutbox();
+        scheduler.processOutbox();
 
         assertThat(entry.getRetryCount()).isEqualTo(3);
         verify(jpaOutboxRepository).save(entry);
@@ -109,11 +116,12 @@ class OutboxSchedulerTest {
     @Test
     void processOutbox_failingEntry_exceedsMaxRetries_movedToDeadLetterAndDeletedFromOutbox() {
         OutboxEntity entry = buildEntry(5);
-        when(jpaOutboxRepository.findAllByOrderByCreatedAtAsc(any())).thenReturn(List.of(entry));
+        when(jpaOutboxRepository.findAllByTypeInOrderByCreatedAtAsc(any(), any()))
+                .thenReturn(List.of(entry));
         when(objectMapper.readValue(anyString(), ArgumentMatchers.<Class<Booking>>any()))
                 .thenThrow(new RuntimeException("deserialization error"));
 
-        outboxScheduler.processOutbox();
+        scheduler.processOutbox();
 
         verify(jpaDeadLetterRepository).save(any());
         verify(jpaOutboxRepository).delete(entry);
@@ -124,12 +132,12 @@ class OutboxSchedulerTest {
     void processOutbox_firstEntryFails_remainingEntriesSkippedToPreserveOrder() {
         OutboxEntity failing = buildEntry(0);
         OutboxEntity skipped = buildEntry(0);
-        when(jpaOutboxRepository.findAllByOrderByCreatedAtAsc(any()))
+        when(jpaOutboxRepository.findAllByTypeInOrderByCreatedAtAsc(any(), any()))
                 .thenReturn(List.of(failing, skipped));
         when(objectMapper.readValue(anyString(), eq(Booking.class)))
                 .thenThrow(new RuntimeException("first fails"));
 
-        outboxScheduler.processOutbox();
+        scheduler.processOutbox();
 
         verify(jpaOutboxRepository).save(failing);
         verify(jpaOutboxRepository, never()).delete(any());
@@ -138,43 +146,32 @@ class OutboxSchedulerTest {
     @Test
     void processOutbox_fetchesBatchWithConfiguredSize() {
         OutboxProperties customProps = new OutboxProperties(1000L, 25, 5);
-        outboxScheduler = new OutboxScheduler(
+        scheduler = new BookingOutboxScheduler(
                 jpaOutboxRepository, jpaDeadLetterRepository,
-                TOPIC_PROPS, customProps, objectMapper, kafkaTemplate
+                customProps, kafkaTemplate, TOPIC_PROPS, objectMapper
         );
-        when(jpaOutboxRepository.findAllByOrderByCreatedAtAsc(any())).thenReturn(List.of());
+        when(jpaOutboxRepository.findAllByTypeInOrderByCreatedAtAsc(any(), any()))
+                .thenReturn(List.of());
 
-        outboxScheduler.processOutbox();
+        scheduler.processOutbox();
 
-        verify(jpaOutboxRepository).findAllByOrderByCreatedAtAsc(PageRequest.of(0, 25));
+        verify(jpaOutboxRepository).findAllByTypeInOrderByCreatedAtAsc(
+                List.of("BookingCreated", "BookingCancelled"),
+                PageRequest.of(0, 25));
     }
 
     @Test
-    void processOutbox_unknownEventType_treatedAsFailureAndSavedBack() {
-        // readValue succeeds, ale switch default rzuca IllegalArgumentException
-        // która jest złapana przez toAvro i zawinięta w RuntimeException → handleFailure
-        OutboxEntity entry = buildEntryWithType(0, "UnknownEventType");
-        when(jpaOutboxRepository.findAllByOrderByCreatedAtAsc(any())).thenReturn(List.of(entry));
-        when(objectMapper.readValue(anyString(), eq(Booking.class))).thenReturn(DESERIALIZED_BOOKING);
-
-        outboxScheduler.processOutbox();
-
-        assertThat(entry.getRetryCount()).isEqualTo(1);
-        verify(jpaOutboxRepository).save(entry);
-        verify(jpaOutboxRepository, never()).delete(any());
+    void supportedTypes_returnsBookingTypes() {
+        assertThat(scheduler.supportedTypes())
+                .containsExactly("BookingCreated", "BookingCancelled");
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
 
     private OutboxEntity buildEntry(int retryCount) {
-        return buildEntryWithType(retryCount, "BookingCreated");
-    }
-
-    private OutboxEntity buildEntryWithType(int retryCount, String type) {
         return OutboxEntity.builder()
                 .id(UUID.randomUUID())
                 .aggregateId("1")
-                .type(type)
+                .type("BookingCreated")
                 .payload(VALID_PAYLOAD)
                 .createdAt(LocalDateTime.now())
                 .retryCount(retryCount)
