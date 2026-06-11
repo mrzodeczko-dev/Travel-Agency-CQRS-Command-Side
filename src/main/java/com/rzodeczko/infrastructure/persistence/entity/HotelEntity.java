@@ -16,8 +16,7 @@ public class HotelEntity {
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "hotel_seq")
     @SequenceGenerator(
             name = "hotel_seq",
-            sequenceName = "hotel_seq",
-            allocationSize = 1)
+            sequenceName = "hotels_seq")
     @EqualsAndHashCode.Include
     private Long id;
 
