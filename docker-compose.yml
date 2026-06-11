@@ -5,7 +5,7 @@ services:
   # ---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
   travel-agency-command-side-postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     restart: unless-stopped
     volumes:
       - travel-agency-command-side-postgres:/var/lib/postgresql/data

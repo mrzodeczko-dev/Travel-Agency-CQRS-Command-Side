@@ -3,7 +3,7 @@
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.6-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![Java](https://img.shields.io/badge/Java-25-orange.svg)](https://openjdk.org/)
 [![Kafka](https://img.shields.io/badge/Kafka-KRaft-black.svg)](https://kafka.apache.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)](https://www.postgresql.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-336791.svg)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
 [![CI](https://github.com/mrzodeczko-dev/travel-agency-command-side/actions/workflows/ci.yml/badge.svg)](https://github.com/mrzodeczko-dev/travel-agency-command-side/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -370,23 +370,23 @@ graph LR
 ## 💻 Tech Stack
 [Back to Table of Contents](#toc)
 
-| Layer | Technology |
-|-------|------------|
-| Language | Java 25 (virtual threads via Project Loom) |
-| Framework | Spring Boot 4.0.6 |
-| Web | Spring WebMVC, Spring Validation |
-| Persistence | Spring Data JPA, Hibernate (batch writes, pessimistic locking) |
-| Database | PostgreSQL 16 |
-| Schema migrations | Liquibase |
-| Messaging | Apache Kafka (KRaft, no ZooKeeper) |
-| Schema | Apache Avro 1.11.3, Confluent Schema Registry 8.2.0 |
+| Layer | Technology                                                                            |
+|-------|---------------------------------------------------------------------------------------|
+| Language | Java 25 (virtual threads via Project Loom)                                            |
+| Framework | Spring Boot 4.0.6                                                                     |
+| Web | Spring WebMVC, Spring Validation                                                      |
+| Persistence | Spring Data JPA, Hibernate (batch writes, pessimistic locking)                        |
+| Database | PostgreSQL 18                                                                         |
+| Schema migrations | Liquibase                                                                             |
+| Messaging | Apache Kafka (KRaft, no ZooKeeper)                                                    |
+| Schema | Apache Avro 1.11.3, Confluent Schema Registry 8.2.0                                   |
 | Serialisation | `kafka-avro-serializer`, `BookingEventAvro` + `EventType` enum generated from `.avsc` |
-| Scheduling | Spring `@Scheduled` + ShedLock (OutboxScheduler — fixed delay 1 s) |
-| Retry | Spring Retry (`RetryingCreateBookingUseCase` — 3 attempts, 50 ms backoff) |
-| Build | Maven 3.9, multi-stage Docker build |
-| Containerisation | Docker, Docker Compose v2+, non-root user, layer extraction |
-| Observability | Spring Boot Actuator (`/actuator/health`) |
-| Utilities | Lombok |
+| Scheduling | Spring `@Scheduled` + ShedLock (OutboxScheduler — fixed delay 1 s)                    |
+| Retry | Spring Retry (`RetryingCreateBookingUseCase` — 3 attempts, 50 ms backoff)             |
+| Build | Maven 3.9, multi-stage Docker build                                                   |
+| Containerisation | Docker, Docker Compose v2+, non-root user, layer extraction                           |
+| Observability | Spring Boot Actuator (`/actuator/health`)                                             |
+| Utilities | Lombok                                                                                |
 
 ---
 
