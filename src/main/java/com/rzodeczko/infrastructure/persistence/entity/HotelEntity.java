@@ -13,9 +13,9 @@ import lombok.*;
 public class HotelEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "hotel_seq")
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "hotels_seq")
     @SequenceGenerator(
-            name = "hotel_seq",
+            name = "hotels_seq",
             sequenceName = "hotels_seq")
     @EqualsAndHashCode.Include
     private Long id;
