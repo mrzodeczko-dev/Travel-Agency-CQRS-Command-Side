@@ -13,5 +13,6 @@
     <include file="db/changelog/changes/006-create-dead-letter-outbox.xml"/>
     <include file="db/changelog/changes/007-create-shedlock.xml"/>
     <include file="db/changelog/changes/008-add-booking-status.xml"/>
+    <include file="db/changelog/changes/009-set-sequence-ownership.xml"/>
 
 </databaseChangeLog>
