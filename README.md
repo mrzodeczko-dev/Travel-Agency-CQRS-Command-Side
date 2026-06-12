@@ -28,6 +28,7 @@ Travel Agency Command Side is the write model of a CQRS-based hotel booking plat
 - [🏗️ Architecture](#architecture)
 - [💻 Tech Stack](#tech-stack)
 - [🧪 Testing Strategy](#testing-strategy)
+- [📡 Observability](#observability)
 - [📂 Repository Structure](#repository-structure)
 - [🤝 Contact](#contact)
 
@@ -453,6 +454,64 @@ Unit tests — plain JUnit 5, no Spring context loaded.
 mvn test        # unit tests only
 mvn verify      # unit tests + JaCoCo coverage report
 ```
+
+---
+
+<a id="observability"></a>
+## 📡 Observability
+[Back to Table of Contents](#toc)
+
+The stack ships with a full observability pipeline — metrics, traces, and pre-built dashboards — all included in the Docker Compose setup and ready out of the box.
+
+### Stack
+
+| Component | Purpose | Default URL |
+|-----------|---------|-------------|
+| **Prometheus** | Metrics collection — scrapes `/actuator/prometheus` every 5 s | [http://localhost:9090](http://localhost:9090) |
+| **Grafana** | Dashboards and visualization | [http://localhost:3000](http://localhost:3000) (admin / admin) |
+| **Tempo** | Distributed tracing backend (OTLP receiver) | [http://localhost:3200](http://localhost:3200) |
+
+### Grafana Dashboards
+
+All dashboards are auto-provisioned into the **Travel Agency** folder on startup.
+
+| Dashboard | Description | Direct Link |
+|-----------|-------------|-------------|
+| **Application General** | JVM metrics, HTTP request rates, latencies, error rates, HikariCP pool stats | [Open](http://localhost:3000/d/application-general) |
+| **Booking Service** | `bookings_total`, `bookings_cancelled_total`, `bookings_failed_total`, create/cancel duration timers | [Open](http://localhost:3000/d/booking-service) |
+| **Hotels Service** | `hotels_created_total`, `hotels_capacity_updated_total`, create/update duration timers | [Open](http://localhost:3000/d/hotels-service) |
+| **Kafka Producer** | Producer throughput, batch sizes, request latencies, record send rate | [Open](http://localhost:3000/d/kafka-producer) |
+
+### Custom Metrics
+
+Business-level metrics exposed via Micrometer (`InstrumentedBookingService`, `InstrumentedHotelService`, `ObservabilityConfiguration`):
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `bookings_total` | Counter | Total bookings created |
+| `bookings_cancelled_total` | Counter | Total bookings cancelled |
+| `bookings_failed_total` | Counter | Failed booking attempts (overbooking, not found, etc.) |
+| `bookings_create_duration` | Timer | Time spent creating a booking |
+| `bookings_cancel_duration` | Timer | Time spent cancelling a booking |
+| `hotels_created_total` | Counter | Total hotels created |
+| `hotels_capacity_updated_total` | Counter | Total hotel capacity updates |
+| `hotels_create_failed_total` | Counter | Failed hotel creations |
+| `hotels_update_failed` | Counter | Failed hotel capacity updates |
+| `hotels_create_duration` | Timer | Time spent creating a hotel |
+| `hotels_update_duration` | Timer | Time spent updating hotel capacity |
+| `outbox_backlog` | Gauge | Pending outbox entries waiting to be published |
+| `outbox_dead_letter_backlog` | Gauge | Entries in the dead letter table |
+
+### Distributed Tracing
+
+Tracing is powered by OpenTelemetry and disabled by default. Enable it with:
+
+```dotenv
+TRACING_ENABLED=true
+TRACING_SAMPLING=1.0   # 0.0–1.0, default 1.0
+```
+
+Traces are exported via OTLP (HTTP) to Tempo and queryable in Grafana under the **Tempo** data source. The Tempo data source is pre-configured with trace-to-metrics correlation to Prometheus.
 
 ---
 
