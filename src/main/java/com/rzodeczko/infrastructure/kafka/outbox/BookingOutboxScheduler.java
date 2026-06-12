@@ -3,11 +3,12 @@ package com.rzodeczko.infrastructure.kafka.outbox;
 import com.rzodeczko.avro.BookingEventAvro;
 import com.rzodeczko.avro.EventType;
 import com.rzodeczko.domain.model.Booking;
-import com.rzodeczko.infrastructure.kafka.properties.KafkaTopicProperties;
+import com.rzodeczko.infrastructure.kafka.properties.BookingsTopicProperties;
 import com.rzodeczko.infrastructure.kafka.properties.OutboxProperties;
 import com.rzodeczko.infrastructure.persistence.entity.OutboxEntity;
 import com.rzodeczko.infrastructure.persistence.repository.JpaDeadLetterRepository;
 import com.rzodeczko.infrastructure.persistence.repository.JpaOutboxRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.avro.specific.SpecificRecordBase;
@@ -24,7 +25,7 @@ public class BookingOutboxScheduler extends AbstractOutboxScheduler {
 
     private static final List<String> TYPES = List.of("BookingCreated", "BookingCancelled");
 
-    private final KafkaTopicProperties kafkaTopicProperties;
+    private final BookingsTopicProperties bookingsTopicProperties;
     private final ObjectMapper objectMapper;
 
     public BookingOutboxScheduler(
@@ -32,10 +33,11 @@ public class BookingOutboxScheduler extends AbstractOutboxScheduler {
             JpaDeadLetterRepository jpaDeadLetterRepository,
             OutboxProperties outboxProperties,
             KafkaTemplate<String, SpecificRecordBase> kafkaTemplate,
-            KafkaTopicProperties kafkaTopicProperties,
-            ObjectMapper objectMapper) {
-        super(jpaOutboxRepository, jpaDeadLetterRepository, outboxProperties, kafkaTemplate);
-        this.kafkaTopicProperties = kafkaTopicProperties;
+            BookingsTopicProperties bookingsTopicProperties,
+            ObjectMapper objectMapper,
+            MeterRegistry meterRegistry) {
+        super(jpaOutboxRepository, jpaDeadLetterRepository, outboxProperties, kafkaTemplate, meterRegistry);
+        this.bookingsTopicProperties = bookingsTopicProperties;
         this.objectMapper = objectMapper;
     }
 
@@ -53,7 +55,7 @@ public class BookingOutboxScheduler extends AbstractOutboxScheduler {
 
     @Override
     protected String resolveTopic(OutboxEntity entry) {
-        return kafkaTopicProperties.name();
+        return bookingsTopicProperties.name();
     }
 
     @Override

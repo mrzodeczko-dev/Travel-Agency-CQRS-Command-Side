@@ -94,7 +94,7 @@ services:
     entrypoint: [ "bash", "-c", "
       echo 'Creating Kafka topics...' &&
       kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic ${TOPIC_BOOKINGS} --partitions ${TOPIC_PARTITIONS:-3} --replication-factor ${TOPIC_REPLICAS:-1} &&
-      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic ${TOPIC_HOTELS} --partitions ${TOPIC_PARTITIONS:-3} --replication-factor ${TOPIC_REPLICAS:-1} &&
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic ${TOPIC_HOTELS} --partitions ${TOPIC_PARTITIONS:-3} --replication-factor ${TOPIC_REPLICAS:-1} --config cleanup.policy=compact &&
       echo 'All topics created successfully'
       " ]
     restart: "no"
@@ -148,6 +148,9 @@ services:
       TOPIC_BOOKINGS: ${TOPIC_BOOKINGS}
       TOPIC_HOTELS: ${TOPIC_HOTELS}
       SPRINGDOC_ENABLED: ${SPRINGDOC_ENABLED}
+      TRACING_ENABLED: ${TRACING_ENABLED:-false}
+      TRACING_SAMPLING: ${TRACING_SAMPLING:-1.0}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
     deploy:
         resources:
             limits:
@@ -162,9 +165,67 @@ services:
       - mr-network
 
 
+  # ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+  # OBSERVABILITY
+  # ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: prometheus
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=7d'
+    depends_on:
+      travel-agency-command-side:
+        condition: service_started
+    networks:
+      - mr-network
+
+  tempo:
+    image: grafana/tempo:2.5.0
+    container_name: tempo
+    volumes:
+      - ./observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+    command: [ "-config.file=/etc/tempo/tempo.yml" ]
+    networks:
+      - mr-network
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: grafana
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    depends_on:
+      - prometheus
+      - tempo
+    networks:
+      - mr-network
+
 volumes:
   travel-agency-command-side-postgres:
   kafka-data:
+  prometheus-data:
+  tempo-data:
+  grafana-data:
 
 networks:
   mr-network:

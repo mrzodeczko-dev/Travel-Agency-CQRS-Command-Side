@@ -6,6 +6,7 @@ import com.rzodeczko.infrastructure.kafka.properties.OutboxProperties;
 import com.rzodeczko.infrastructure.persistence.entity.OutboxEntity;
 import com.rzodeczko.infrastructure.persistence.repository.JpaDeadLetterRepository;
 import com.rzodeczko.infrastructure.persistence.repository.JpaOutboxRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.avro.specific.SpecificRecordBase;
@@ -32,8 +33,9 @@ public class HotelOutboxScheduler extends AbstractOutboxScheduler {
             OutboxProperties outboxProperties,
             KafkaTemplate<String, SpecificRecordBase> kafkaTemplate,
             HotelTopicProperties hotelTopicProperties,
-            ObjectMapper objectMapper) {
-        super(jpaOutboxRepository, jpaDeadLetterRepository, outboxProperties, kafkaTemplate);
+            ObjectMapper objectMapper,
+            MeterRegistry meterRegistry) {
+        super(jpaOutboxRepository, jpaDeadLetterRepository, outboxProperties, kafkaTemplate, meterRegistry);
         this.hotelTopicProperties = hotelTopicProperties;
         this.objectMapper = objectMapper;
     }

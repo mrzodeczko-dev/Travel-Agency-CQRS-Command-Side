@@ -1,12 +1,13 @@
 package com.rzodeczko.infrastructure.kafka.outbox;
 
 import com.rzodeczko.domain.model.Booking;
-import com.rzodeczko.infrastructure.kafka.properties.KafkaTopicProperties;
+import com.rzodeczko.infrastructure.kafka.properties.BookingsTopicProperties;
 import com.rzodeczko.infrastructure.kafka.properties.OutboxProperties;
 import com.rzodeczko.infrastructure.persistence.entity.OutboxEntity;
 import com.rzodeczko.infrastructure.persistence.repository.JpaDeadLetterRepository;
 import com.rzodeczko.infrastructure.persistence.repository.JpaOutboxRepository;
 import org.apache.avro.specific.SpecificRecordBase;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,7 +50,7 @@ class BookingOutboxSchedulerTest {
     private BookingOutboxScheduler scheduler;
 
     private static final OutboxProperties OUTBOX_PROPS = new OutboxProperties(1000L, 50, 5);
-    private static final KafkaTopicProperties TOPIC_PROPS = new KafkaTopicProperties("travel.bookings");
+    private static final BookingsTopicProperties TOPIC_PROPS = new BookingsTopicProperties("travel.bookings");
 
     private static final String VALID_PAYLOAD =
             """
@@ -69,7 +70,8 @@ class BookingOutboxSchedulerTest {
                 OUTBOX_PROPS,
                 kafkaTemplate,
                 TOPIC_PROPS,
-                objectMapper
+                objectMapper,
+                new SimpleMeterRegistry()
         );
     }
 
@@ -148,7 +150,8 @@ class BookingOutboxSchedulerTest {
         OutboxProperties customProps = new OutboxProperties(1000L, 25, 5);
         scheduler = new BookingOutboxScheduler(
                 jpaOutboxRepository, jpaDeadLetterRepository,
-                customProps, kafkaTemplate, TOPIC_PROPS, objectMapper
+                customProps, kafkaTemplate, TOPIC_PROPS, objectMapper,
+                new SimpleMeterRegistry()
         );
         when(jpaOutboxRepository.findAllByTypeInOrderByCreatedAtAsc(any(), any()))
                 .thenReturn(List.of());

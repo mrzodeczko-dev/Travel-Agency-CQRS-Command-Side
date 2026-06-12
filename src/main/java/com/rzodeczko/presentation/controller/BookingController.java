@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,13 +27,14 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/bookings")
 @Validated
 @Tag(name = "Bookings", description = "Hotel booking creation and cancellation")
+@Slf4j
 public class BookingController {
     private final CreateBookingUseCase createBookingUseCase;
     private final CancelBookingUseCase cancelBookingUseCase;
 
     public BookingController(
-            @Qualifier("transactionalCreateBookingUseCase") CreateBookingUseCase createBookingUseCase,
-            @Qualifier("transactionalCancelBookingUseCase") CancelBookingUseCase cancelBookingUseCase) {
+            @Qualifier("instrumentedCreate") CreateBookingUseCase createBookingUseCase,
+            @Qualifier("instrumentedCancel") CancelBookingUseCase cancelBookingUseCase) {
         this.createBookingUseCase = createBookingUseCase;
         this.cancelBookingUseCase = cancelBookingUseCase;
     }
@@ -53,6 +55,8 @@ public class BookingController {
     )
     public ResponseEntity<CreateBookingResponseDto> create(
             @RequestBody @Valid CreateBookingRequestDto request) {
+        log.info(">>> Received booking creation request: hotelId={}, userId={}, start={}, end={}",
+                request.hotelId(), request.userId(), request.start(), request.end());
         var command = new CreateBookingCommand(
                 request.hotelId(),
                 request.userId(),
@@ -61,6 +65,7 @@ public class BookingController {
         );
 
         Long bookingId = createBookingUseCase.createBooking(command);
+        log.info("<<< Created booking: bookingId={}", bookingId);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(new CreateBookingResponseDto(bookingId));

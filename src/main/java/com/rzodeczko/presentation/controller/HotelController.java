@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Qualifier;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,8 +32,9 @@ public class HotelController {
     private final CreateHotelUseCase createHotelUseCase;
     private final UpdateHotelCapacityUseCase updateHotelCapacityUseCase;
 
-    public HotelController(CreateHotelUseCase createHotelUseCase,
-                           UpdateHotelCapacityUseCase updateHotelCapacityUseCase) {
+    public HotelController(
+            @Qualifier("createHotelUseCase") CreateHotelUseCase createHotelUseCase,
+            @Qualifier("updateHotelCapacityUseCase") UpdateHotelCapacityUseCase updateHotelCapacityUseCase) {
         this.createHotelUseCase = createHotelUseCase;
         this.updateHotelCapacityUseCase = updateHotelCapacityUseCase;
     }

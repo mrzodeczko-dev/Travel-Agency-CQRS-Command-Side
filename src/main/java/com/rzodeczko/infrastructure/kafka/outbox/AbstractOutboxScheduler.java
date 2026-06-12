@@ -5,6 +5,9 @@ import com.rzodeczko.infrastructure.persistence.entity.DeadLetterEntity;
 import com.rzodeczko.infrastructure.persistence.entity.OutboxEntity;
 import com.rzodeczko.infrastructure.persistence.repository.JpaDeadLetterRepository;
 import com.rzodeczko.infrastructure.persistence.repository.JpaOutboxRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -23,15 +26,39 @@ public abstract class AbstractOutboxScheduler {
     protected final OutboxProperties outboxProperties;
     protected final KafkaTemplate<String, SpecificRecordBase> kafkaTemplate;
 
+    private final Counter publishedCounter;
+    private final Counter failedCounter;
+    private final Counter deadLetterCounter;
+    private final Timer publishTimer;
+
     protected AbstractOutboxScheduler(
             JpaOutboxRepository jpaOutboxRepository,
             JpaDeadLetterRepository jpaDeadLetterRepository,
             OutboxProperties outboxProperties,
-            KafkaTemplate<String, SpecificRecordBase> kafkaTemplate) {
+            KafkaTemplate<String, SpecificRecordBase> kafkaTemplate,
+            MeterRegistry meterRegistry) {
         this.jpaOutboxRepository = jpaOutboxRepository;
         this.jpaDeadLetterRepository = jpaDeadLetterRepository;
         this.outboxProperties = outboxProperties;
         this.kafkaTemplate = kafkaTemplate;
+
+        String schedulerName = getClass().getSimpleName();
+        this.publishedCounter = Counter.builder("outbox_events_published")
+                .tag("scheduler", schedulerName)
+                .description("Number of outbox events successfully published to Kafka")
+                .register(meterRegistry);
+        this.failedCounter = Counter.builder("outbox_events_failed")
+                .tag("scheduler", schedulerName)
+                .description("Number of outbox event publish failures")
+                .register(meterRegistry);
+        this.deadLetterCounter = Counter.builder("outbox_events_dead_lettered")
+                .tag("scheduler", schedulerName)
+                .description("Number of outbox events moved to dead letter table")
+                .register(meterRegistry);
+        this.publishTimer = Timer.builder("outbox_publish_duration")
+                .tag("scheduler", schedulerName)
+                .description("Time spent publishing a single outbox event to Kafka")
+                .register(meterRegistry);
     }
 
     protected abstract List<String> supportedTypes();
@@ -47,9 +74,11 @@ public abstract class AbstractOutboxScheduler {
 
         for (OutboxEntity entry : entries) {
             try {
-                sendToKafka(entry);
+                publishTimer.record(() -> sendToKafka(entry));
                 jpaOutboxRepository.delete(entry);
+                publishedCounter.increment();
             } catch (Exception e) {
+                failedCounter.increment();
                 handleFailure(entry, e);
                 break;
             }
@@ -74,6 +103,7 @@ public abstract class AbstractOutboxScheduler {
     private void handleFailure(OutboxEntity entry, Exception e) {
         entry.incrementRetryCount();
         if (entry.hasExceededMaxRetries(outboxProperties.maxRetries())) {
+            deadLetterCounter.increment();
             moveToDeadLetter(entry, e);
             jpaOutboxRepository.delete(entry);
             log.error("Outbox entry {} moved to DLT after {} retries: {}",

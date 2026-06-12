@@ -5,6 +5,7 @@ import com.rzodeczko.domain.exception.BookingAlreadyCancelledException;
 import com.rzodeczko.domain.exception.OverbookingException;
 import com.rzodeczko.domain.exception.ResourceNotFoundException;
 import com.rzodeczko.presentation.dto.ErrorResponseDto;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
@@ -33,6 +34,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(new ErrorResponseDto("Concurrent booking detected. Please retry."));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponseDto> handleConstraintViolationException(ConstraintViolationException ex) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ErrorResponseDto("Validation error: " + ex.getMessage()));
     }
 
     @ExceptionHandler(PessimisticLockingFailureException.class)
@@ -76,7 +84,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<ErrorResponseDto> handleNoResourceFoundException(ResourceNotFoundException ex) {
+    public ResponseEntity<ErrorResponseDto> handleNoResourceFoundException(NoResourceFoundException ex) {
         log.warn("Resource not found: {}", ex.getMessage());
         return ResponseEntity.notFound().build();
     }

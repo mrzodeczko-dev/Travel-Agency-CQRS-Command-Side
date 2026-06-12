@@ -5,6 +5,7 @@ import com.rzodeczko.infrastructure.kafka.properties.OutboxProperties;
 import com.rzodeczko.infrastructure.persistence.entity.OutboxEntity;
 import com.rzodeczko.infrastructure.persistence.repository.JpaDeadLetterRepository;
 import com.rzodeczko.infrastructure.persistence.repository.JpaOutboxRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.apache.avro.specific.SpecificRecordBase;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,7 +61,8 @@ class HotelOutboxSchedulerTest {
                 OUTBOX_PROPS,
                 kafkaTemplate,
                 HOTEL_TOPIC_PROPS,
-                JsonMapper.builder().build()
+                JsonMapper.builder().build(),
+                new SimpleMeterRegistry()
         );
     }
 
@@ -120,7 +122,8 @@ class HotelOutboxSchedulerTest {
         scheduler = new HotelOutboxScheduler(
                 jpaOutboxRepository, jpaDeadLetterRepository,
                 customProps, kafkaTemplate, HOTEL_TOPIC_PROPS,
-                JsonMapper.builder().build()
+                JsonMapper.builder().build(),
+                new SimpleMeterRegistry()
         );
         when(jpaOutboxRepository.findAllByTypeInOrderByCreatedAtAsc(any(), any()))
                 .thenReturn(List.of());

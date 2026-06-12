@@ -5,6 +5,9 @@
 [![Kafka](https://img.shields.io/badge/Kafka-KRaft-black.svg)](https://kafka.apache.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-336791.svg)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
+[![Grafana](https://img.shields.io/badge/Grafana-Dashboard-F46800.svg?logo=grafana&logoColor=white)](https://grafana.com/)
+[![Prometheus](https://img.shields.io/badge/Prometheus-Metrics-E6522C.svg?logo=prometheus&logoColor=white)](https://prometheus.io/)
+[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Tracing-7B61FF.svg?logo=opentelemetry&logoColor=white)](https://opentelemetry.io/)
 [![CI](https://github.com/mrzodeczko-dev/travel-agency-command-side/actions/workflows/ci.yml/badge.svg)](https://github.com/mrzodeczko-dev/travel-agency-command-side/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -97,6 +100,13 @@ sequenceDiagram
 
 **Base URL:** `http://localhost:8080`
 
+### Hotel Endpoints
+
+| Method | Path | Purpose | Request Body | Success | Common Errors |
+|--------|------|---------|--------------|---------|---------------|
+| `POST` | `/api/hotels` | Create a new hotel | `CreateHotelRequestDto` | `201 Created` | `400` |
+| `PATCH` | `/api/hotels/{id}` | Update hotel capacity | `UpdateHotelCapacityRequestDto` | `200 OK` | `400`, `404` |
+
 ### Booking Endpoints
 
 | Method | Path | Purpose | Request Body | Success | Common Errors |
@@ -104,20 +114,28 @@ sequenceDiagram
 | `POST` | `/api/bookings` | Create a new booking | `CreateBookingRequestDto` | `201 Created` | `400`, `409` |
 | `DELETE` | `/api/bookings/{id}` | Cancel a booking | — | `204 No Content` | `404`, `409` |
 
+### Request Body — `CreateHotelRequestDto` / `UpdateHotelCapacityRequestDto`
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| `capacity` | `Long` | `@NotNull @Positive` | Number of rooms in the hotel |
+
 ### Request Body — `CreateBookingRequestDto`
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
 | `hotelId` | `Long` | `@NotNull` | ID of the hotel to book |
 | `userId` | `Long` | `@NotNull` | ID of the user making the booking |
-| `start` | `LocalDate` | `@NotNull @Future` | Check-in date |
-| `end` | `LocalDate` | `@NotNull @Future` | Check-out date |
+| `start` | `LocalDate` | `@NotNull @FutureOrPresent` | Check-in date |
+| `end` | `LocalDate` | `@NotNull @FutureOrPresent` | Check-out date |
 
-### Health Endpoint
+### Health & Documentation Endpoints
 
 | Method | Path | Purpose | Success |
 |--------|------|---------|---------| 
 | `GET` | `/actuator/health` | Application health check | `200 OK` |
+| `GET` | `/swagger-ui/index.html` | Swagger UI (requires `SPRINGDOC_ENABLED=true`) | `200 OK` |
+| `GET` | `/v3/api-docs` | OpenAPI 3 spec (JSON) | `200 OK` |
 
 ### cURL Example
 
@@ -238,6 +256,7 @@ Verify: `curl http://localhost:8080/actuator/health` → `{"status":"UP"}`
 |----------|----------|-------------|---------|
 | `TA_COMMAND_SIDE_SERVICE_PORT` | yes | HTTP port the service listens on | `8080` |
 | `TA_COMMAND_SIDE_SERVICE_APPLICATION_NAME` | optional | Spring application name | `travel-agency-command-side` |
+| `SPRINGDOC_ENABLED` | optional | Enable Swagger UI and OpenAPI docs (default `false`) | `true` |
 
 ### Kafka
 
@@ -257,6 +276,13 @@ Verify: `curl http://localhost:8080/actuator/health` → `{"status":"UP"}`
 | `TOPIC_PARTITIONS` | optional | Number of partitions for topic creation | `3` |
 | `TOPIC_REPLICAS` | optional | Replication factor for topic creation | `1` |
 
+### Observability
+
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `TRACING_ENABLED` | optional | Enable distributed tracing via OpenTelemetry (default `false`) | `true` |
+| `TRACING_SAMPLING` | optional | Trace sampling probability 0.0–1.0 (default `1.0`) | `0.5` |
+
 ---
 
 <a id="common-issues"></a>
@@ -271,7 +297,7 @@ Verify: `curl http://localhost:8080/actuator/health` → `{"status":"UP"}`
 
 4. **Outbox messages stuck / not published** — check that Schema Registry is reachable at `http://schema-registry:8200`. Inspect `docker compose logs travel-agency-command-side` for Kafka producer errors. After `max-retries` (default 5) failures, messages are moved to the `dead_letter_outbox` table — query it directly to inspect the error messages.
 
-5. **Port conflict** — check for conflicts on `5432` (PostgreSQL), `8080` (app), `9092` (Kafka), `8200` (Schema Registry), `8100` (Kafka UI): `netstat -ano | findstr :8080`.
+5. **Port conflict** — check for conflicts on `5432` (PostgreSQL), `8080` (app), `9092` (Kafka), `8200` (Schema Registry), `8100` (Kafka UI), `9090` (Prometheus), `3000` (Grafana), `3200` (Tempo): `netstat -ano | findstr :8080`.
 
 ---
 
@@ -381,13 +407,14 @@ graph LR
 | Database | PostgreSQL 18                                                                         |
 | Schema migrations | Liquibase                                                                             |
 | Messaging | Apache Kafka (KRaft, no ZooKeeper)                                                    |
-| Schema | Apache Avro 1.11.3, Confluent Schema Registry 8.2.0                                   |
+| Schema | Apache Avro 1.12.0, Confluent Schema Registry 8.2.0                                   |
 | Serialisation | `kafka-avro-serializer`, `BookingEventAvro` + `EventType` enum generated from `.avsc` |
 | Scheduling | Spring `@Scheduled` + ShedLock (OutboxScheduler — fixed delay 1 s)                    |
 | Retry | Spring Retry (`RetryingCreateBookingUseCase` — 3 attempts, 50 ms backoff)             |
 | Build | Maven 3.9, multi-stage Docker build                                                   |
 | Containerisation | Docker, Docker Compose v2+, non-root user, layer extraction                           |
-| Observability | Spring Boot Actuator (`/actuator/health`)                                             |
+| API docs | SpringDoc OpenAPI 3.0.3, Swagger UI (disabled by default)                              |
+| Observability | Micrometer + Prometheus, OpenTelemetry tracing, Grafana dashboards, Tempo              |
 | Utilities | Lombok                                                                                |
 
 ---
