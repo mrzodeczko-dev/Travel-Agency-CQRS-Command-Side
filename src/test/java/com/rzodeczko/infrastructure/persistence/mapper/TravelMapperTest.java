@@ -31,12 +31,12 @@ class TravelMapperTest {
     private ObjectMapper mockObjectMapper;
 
     /**
-     * Mapper z prawdziwym JsonMapper — do happy-path testów
+     * Mapper z prawdziwym JsonMapper - do happy-path testów
      */
     private TravelMapper mapper;
 
     /**
-     * Mapper z mockiem ObjectMapper — do testowania ścieżki błędu
+     * Mapper z mockiem ObjectMapper - do testowania ścieżki błędu
      */
     private TravelMapper failingMapper;
 

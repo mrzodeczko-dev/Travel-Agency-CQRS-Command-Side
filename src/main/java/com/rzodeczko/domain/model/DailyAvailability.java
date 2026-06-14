@@ -30,7 +30,7 @@ public class DailyAvailability {
     public void releaseOne() {
         if (occupiedRooms <= 0) {
             throw new IllegalStateException(
-                    "Cannot release room for hotel %d on %s — no rooms are occupied"
+                    "Cannot release room for hotel %d on %s - no rooms are occupied"
                             .formatted(hotelId, date));
         }
         --occupiedRooms;
