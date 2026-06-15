@@ -148,9 +148,6 @@ services:
       TOPIC_BOOKINGS: ${TOPIC_BOOKINGS}
       TOPIC_HOTELS: ${TOPIC_HOTELS}
       SPRINGDOC_ENABLED: ${SPRINGDOC_ENABLED}
-      TRACING_ENABLED: ${TRACING_ENABLED:-false}
-      TRACING_SAMPLING: ${TRACING_SAMPLING:-1.0}
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
     deploy:
         resources:
             limits:
@@ -186,20 +183,6 @@ services:
     networks:
       - mr-network
 
-  tempo:
-    image: grafana/tempo:2.5.0
-    container_name: tempo
-    volumes:
-      - ./observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
-      - tempo-data:/var/tempo
-    ports:
-      - "3200:3200"
-      - "4317:4317"
-      - "4318:4318"
-    command: [ "-config.file=/etc/tempo/tempo.yml" ]
-    networks:
-      - mr-network
-
   grafana:
     image: grafana/grafana:11.1.0
     container_name: grafana
@@ -216,7 +199,6 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
     depends_on:
       - prometheus
-      - tempo
     networks:
       - mr-network
 
@@ -224,7 +206,6 @@ volumes:
   travel-agency-command-side-postgres:
   kafka-data:
   prometheus-data:
-  tempo-data:
   grafana-data:
 
 networks:

@@ -61,28 +61,9 @@ management:
     web:
       exposure:
         include: "health,prometheus,info"
-  endpoint:
-    health:
-      show-details: when_authorized
   metrics:
     tags:
       application: ${spring.application.name}
     distribution:
       percentiles-histogram:
         http.server.requests: true
-  opentelemetry:
-    tracing:
-      enabled: ${TRACING_ENABLED:false}
-      sampling:
-        probability: ${TRACING_SAMPLING:1.0}
-      export:
-        otlp:
-          endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://tempo:4318}
-    metrics:
-      export:
-        otlp:
-          enabled: false
-    logs:
-      export:
-        otlp:
-          enabled: false

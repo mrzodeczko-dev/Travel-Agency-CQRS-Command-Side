@@ -424,7 +424,9 @@ graph LR
 ## 🧪 Testing Strategy
 [Back to Table of Contents](#toc)
 
-Unit tests  -  plain JUnit 5, no Spring context loaded.
+### Unit Tests
+
+Plain JUnit 5 + Mockito, no Spring context loaded.
 
 | Class | Key Scenarios |
 |-------|--------------|
@@ -439,7 +441,8 @@ Unit tests  -  plain JUnit 5, no Spring context loaded.
 | `HotelTest` | Domain model construction and behaviour |
 | `CustomLocalDateSerializerTest` | Date serialisation to expected string format |
 | `CustomLocalDateDeserializerTest` | Date deserialisation from string |
-| `OutboxSchedulerTest` | Successful publish + delete, retry on failure, dead-letter promotion, unknown event type |
+| `BookingOutboxSchedulerTest` | Successful publish + delete, retry on failure, dead-letter promotion |
+| `HotelOutboxSchedulerTest` | Hotel outbox publish and retry scenarios |
 | `TravelPersistenceAdapterTest` | Adapter mappings and persistence calls |
 | `OutboxEntityTest` | Entity construction, retry counter increment |
 | `TravelMapperTest` | Mapping between domain models and JPA entities |
@@ -450,9 +453,32 @@ Unit tests  -  plain JUnit 5, no Spring context loaded.
 | `ErrorResponseDtoTest` | DTO construction |
 | `GlobalExceptionHandlerTest` | Exception → HTTP response mapping (including 409 for already cancelled) |
 
+### Integration Tests
+
+Full Spring Boot context with PostgreSQL (Testcontainers), Embedded Kafka (`@EmbeddedKafka`), and in-memory Mock Schema Registry (`mock://`). All IT classes extend `AbstractIntegrationTest` and use the composed `@IntegrationTest` annotation, which activates the `integration-test` profile and runs `truncate.sql` before each test method for data isolation.
+
+| Class | Key Scenarios |
+|-------|--------------|
+| `BookingFlowIT` | End-to-end create booking via REST (persist + outbox → Kafka), cancel booking via REST (release availability + cancellation event), overbooking returns 409 |
+| `BookingOutboxSchedulerIT` | Outbox publishes `BookingCreated` Avro to Kafka, outbox publishes `BookingCancelled` Avro, no-op when outbox is empty, batch ordering preserved |
+| `TravelPersistenceAdapterIT` | Hotel and booking CRUD round-trips, outbox entry persistence, `reserveAvailability` creates daily slots, overbooking throws `OverbookingException`, `releaseAvailability` decrements occupied rooms, concurrent pessimistic lock prevents double-booking |
+
+### Infrastructure
+
+| Component | Test setup |
+|-----------|------------|
+| PostgreSQL | Testcontainers (`postgres:18-alpine`), singleton per JVM |
+| Kafka | Spring Embedded Kafka (in-process, no Docker) |
+| Schema Registry | Confluent `MockSchemaRegistry` (`mock://test-registry`) |
+| Data isolation | `TRUNCATE TABLE` on all domain + outbox + shedlock tables before each test |
+| Outbox trigger | `OutboxTestHelper` bypasses `@SchedulerLock` AOP proxy via `AopTestUtils.getTargetObject` for deterministic outbox processing |
+
+### Running Tests
+
 ```bash
-mvn test        # unit tests only
-mvn verify      # unit tests + JaCoCo coverage report
+mvn test                          # unit tests only
+mvn verify                        # unit + integration tests + JaCoCo coverage report
+mvn verify -Dgroups=integration   # integration tests only
 ```
 
 ---
