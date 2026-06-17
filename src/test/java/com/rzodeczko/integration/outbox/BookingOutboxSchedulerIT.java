@@ -53,8 +53,8 @@ class BookingOutboxSchedulerIT extends AbstractIntegrationTest {
             assertThat(event.get("id")).isEqualTo(booking.id());
             assertThat(event.get("hotelId")).isEqualTo(hotel.getId());
             assertThat(event.get("userId")).isEqualTo(1L);
-            assertThat(event.get("start").toString()).isEqualTo(DATE.toString());
-            assertThat(event.get("end").toString()).isEqualTo(DATE_END.toString());
+            assertThat(event.get("start")).isEqualTo((int) DATE.toEpochDay());
+            assertThat(event.get("end")).isEqualTo((int) DATE_END.toEpochDay());
             assertThat(event.get("eventType").toString()).isEqualTo("BookingCreated");
         }
 
