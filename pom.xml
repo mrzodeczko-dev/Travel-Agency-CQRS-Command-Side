@@ -159,6 +159,10 @@
             <version>${spring.retry.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aspectj</artifactId>
+        </dependency>
+        <dependency>
             <groupId>net.javacrumbs.shedlock</groupId>
             <artifactId>shedlock-spring</artifactId>
             <version>${shedlock.version}</version>
@@ -287,13 +291,11 @@
                 </executions>
                 <configuration>
                     <excludes>
-                        <!-- Spring @Configuration beans — testowane tylko integracyjnie -->
                         <exclude>**/BeansConfiguration.class</exclude>
                         <exclude>**/SchedulingConfiguration.class</exclude>
                         <exclude>**/AvroProducerConfig.class</exclude>
                         <exclude>**/KafkaTopicConfig.class</exclude>
                         <exclude>**/TravelAgencyCommandSideApplication.class</exclude>
-                        <!-- JPA repositories — interfejsy generowane przez Spring Data -->
                         <exclude>**/repository/*.class</exclude>
                     </excludes>
                 </configuration>
