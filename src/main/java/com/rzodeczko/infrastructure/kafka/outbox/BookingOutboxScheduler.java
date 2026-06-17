@@ -69,8 +69,8 @@ public class BookingOutboxScheduler extends AbstractOutboxScheduler {
                     .setEventType(eventType)
                     .setHotelId(booking.hotelId())
                     .setUserId(booking.userId())
-                    .setStart(booking.start().toString())
-                    .setEnd(booking.end().toString())
+                    .setStart(booking.start())
+                    .setEnd(booking.end())
                     .build();
         } catch (Exception e) {
             throw new RuntimeException("Failed to convert outbox payload to BookingEventAvro", e);

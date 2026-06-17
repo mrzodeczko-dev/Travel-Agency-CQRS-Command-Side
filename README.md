@@ -383,7 +383,7 @@ graph LR
 
 **Technical Highlights:**
 
-- **Hexagonal Architecture (Ports & Adapters):** Domain and application layers have zero infrastructure dependencies. `TravelRepository` is the only bridge between application and infrastructure, implemented by `TravelPersistenceAdapter`.
+- **Hexagonal Architecture (Ports & Adapters):** Domain and application layers have zero infrastructure dependencies. `TravelRepository` is the only bridge between application and infrastructure, implemented by `TravelPersistenceAdapter`. Architectural boundaries are enforced at build time by **ArchUnit** tests (`HexagonalArchitectureTest`) — verifying layer dependencies, framework isolation (domain and application free of Spring/JPA/Kafka imports), and that all ports are interfaces.
 - **CQRS Write Model:** This service handles only commands. All reads are delegated to a separate query-side service that consumes events from Kafka.
 - **Decorator Chain:** Both create and cancel flows follow the same pattern: `Controller` → `Retrying*UseCase` (Spring Retry, 3 attempts, 50 ms backoff on `DataIntegrityViolationException`) → `Transactional*UseCase` (`READ_COMMITTED`) → `BookingService`. All decorators are wired in `BeansConfiguration`.
 - **Pessimistic Locking on `daily_availabilities`:** Each row represents one hotel on one date. `reserveAvailability` issues `SELECT ... FOR UPDATE` on the affected rows with a 3 s lock timeout, preventing any concurrent transaction from double-booking the same day. New date slots are protected by a unique constraint `(hotel_id, date)` as an additional safety net for the first-booking race condition.
@@ -416,6 +416,8 @@ graph LR
 | Containerisation | Docker, Docker Compose v2+, non-root user, layer extraction                           |
 | API docs | SpringDoc OpenAPI 3.0.3, Swagger UI (disabled by default)                              |
 | Observability | Micrometer + Prometheus, OpenTelemetry tracing, Grafana dashboards, Tempo              |
+| Architecture | CQRS (Command Query Responsibility Segregation), Hexagonal / Ports & Adapters          |
+| Architecture tests | ArchUnit 1.4.1 (hexagonal boundary enforcement)                                     |
 | Utilities | Lombok                                                                                |
 
 ---
@@ -446,12 +448,21 @@ Plain JUnit 5 + Mockito, no Spring context loaded.
 | `TravelPersistenceAdapterTest` | Adapter mappings and persistence calls |
 | `OutboxEntityTest` | Entity construction, retry counter increment |
 | `TravelMapperTest` | Mapping between domain models and JPA entities |
+| `HotelServiceTest` | Hotel creation (save + outbox), capacity update, `ResourceNotFoundException` on missing hotel |
+| `HotelControllerTest` | POST `/api/hotels` → 201, PATCH `/api/hotels/{id}` → 200, correct command construction |
+| `InstrumentedBookingServiceTest` | Micrometer counter/timer increments on create/cancel success, `bookings_failed_total` on exception, exception propagation |
+| `InstrumentedHotelServiceTest` | Micrometer counter/timer increments on create/update success, failure counters on exception |
+| `RetryingCreateBookingUseCaseTest` | Delegation passthrough, return value forwarding |
+| `RetryingCancelBookingUseCaseTest` | Delegation passthrough for void cancel |
 | `TransactionalCreateBookingUseCaseTest` | Transactional delegation to BookingService |
 | `TransactionalCancelBookingUseCaseTest` | Transactional delegation for cancellation |
+| `TransactionalCreateHotelUseCaseTest` | Transactional delegation for hotel creation |
+| `TransactionalUpdateHotelCapacityUseCaseTest` | Transactional delegation for capacity update |
 | `BookingControllerTest` | HTTP layer  -  201, 204, 400, 409 responses |
 | `BookingControllerCancelTest` | DELETE endpoint  -  204, 409 responses |
 | `ErrorResponseDtoTest` | DTO construction |
 | `GlobalExceptionHandlerTest` | Exception → HTTP response mapping (including 409 for already cancelled) |
+| `HexagonalArchitectureTest` | ArchUnit  -  layer dependencies, framework isolation (domain/application free of Spring/JPA/Kafka), ports are interfaces |
 
 ### Integration Tests
 
